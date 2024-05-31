@@ -1,5 +1,11 @@
-extern crate user32;
-extern crate winapi;
+mod api;
+mod komsi;
+mod opts;
+mod serial;
+mod vehicle;
+
+// extern crate user32;
+// extern crate winapi;
 
 use windows::{Win32::Foundation::*, Win32::System::SystemServices::*};
 
@@ -18,19 +24,23 @@ use libc::c_char;
 use libc::c_float;
 use std::sync::atomic::{self, AtomicU32};
 
+use crate::opts::Opts;
+use crate::vehicle::VehicleState;
+use crate::vehicle::compare_vehicle_states;
+use crate::vehicle::init_vehicle_state;
+
+
 #[allow(non_camel_case_types)]
 pub type uintptr_t = usize;
 
 static SHARED_PLUGIN_NUM: AtomicU32 = AtomicU32::new(0);
 
-pub fn build_komsi_command(cmd: u8, wert: u32) -> Vec<u8> {
-    let cmd_u8 = cmd as u8;
-    let mut buffer: Vec<u8> = vec![cmd_u8];
-    let mut s: Vec<u8> = wert.to_string().as_bytes().to_vec();
+pub fn get_vehicle_state_from_omsi() -> VehicleState {
+    let mut s = init_vehicle_state();
 
-    buffer.append(&mut s);
+    s.lights_warning = SHARED_PLUGIN_NUM.load(Relaxed) as u8;
 
-    return buffer;
+    return s;
 }
 
 // __declspec(dllexport) void __stdcall PluginStart(void* aOwner)
@@ -43,42 +53,23 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
         .open()
         .expect("Failed to open serial port");
 
-    // Clone the port
-    // let mut portclone = port.try_clone().expect("Failed to clone");
+    let mut vehicle_state = init_vehicle_state();
 
-    // let lp_text = CString::new("Plugin started!").unwrap();
-    //let lp_caption = CString::new("Omsi2Komsi").unwrap();
-
-    //unsafe {
-    //   // Create a message box
-    //  MessageBoxA(
-    //     std::ptr::null_mut(),
-    //    lp_text.as_ptr(),
-    //   lp_caption.as_ptr(),
-    //  Default::default(),
-    //  );
-    // }
-
-    let mut altvar: u32 = 0;
 
     thread::spawn(move || loop {
-        // let string = "CHANGE\x0a";
-        // let buffer = string.as_bytes();
+        // get data from OMSI
+        let newstate = get_vehicle_state_from_omsi();
 
-        let neuvar = SHARED_PLUGIN_NUM.load(Relaxed);
+        // compare and create cmd buf
+        let cmdbuf = compare_vehicle_states(&vehicle_state, &newstate, false);
 
-        if altvar != neuvar {
-            let mut buffer: Vec<u8> = vec![0; 0];
-            let mut b = build_komsi_command(70, neuvar);
-            buffer.append(&mut b);
-            let cmd = 10 as u8;
-            let mut cb: Vec<u8> = vec![cmd];
-            buffer.append(&mut cb);
+        // replace after compare for next round
+        vehicle_state = newstate;
 
+        if cmdbuf.len() > 0 {
             // Write to serial port
-            let _ = port.write(&buffer);
+            let _ = port.write(&cmdbuf);
         }
-        altvar = neuvar;
 
         thread::sleep(Duration::from_millis(100));
     });
@@ -89,20 +80,7 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
 #[allow(non_snake_case, unused_variables)]
 #[no_mangle]
 #[export_name = "PluginFinalize"]
-pub unsafe extern "stdcall" fn PluginFinalize() {
-    // let lp_text = CString::new("Plugin Finalize!").unwrap();
-    // let lp_caption = CString::new("Omsi2Komsi").unwrap();
-
-    // unsafe {
-    // // Create a message box
-    // MessageBoxA(
-    //   std::ptr::null_mut(),
-    //   lp_text.as_ptr(),
-    // lp_caption.as_ptr(),
-    //   Default::default(),
-    //  );
-    //  }
-}
+pub unsafe extern "stdcall" fn PluginFinalize() {}
 
 // __declspec(dllexport) void __stdcall AccessTrigger(unsigned short triggerindex, bool* active)
 // This function links our DLL to Omsi 2, thus it cannot be Safe (raw pointers, etc...)
