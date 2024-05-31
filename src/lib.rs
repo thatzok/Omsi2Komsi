@@ -7,6 +7,7 @@ use user32::MessageBoxA;
 // use winapi::winuser::{MB_OK, MB_ICONINFORMATION};
 
 use std::ffi::CString;
+use std::io;
 
 use std::thread;
 use std::thread::sleep;
@@ -24,6 +25,13 @@ pub type uintptr_t = usize;
 #[no_mangle]
 #[export_name = "PluginStart"]
 pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
+    let mut port = serialport::new("COM22", 115200)
+        .open()
+        .expect("Failed to open serial port");
+
+    // Clone the port
+    // let mut portclone = port.try_clone().expect("Failed to clone");
+
     let lp_text = CString::new("Plugin started!").unwrap();
     let lp_caption = CString::new("Omsi2Komsi").unwrap();
 
@@ -38,18 +46,11 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
     }
 
     thread::spawn(move || loop {
-        let lp_text = CString::new("Thread aufgewacht").unwrap();
-        let lp_caption = CString::new("Omsi2Komsi").unwrap();
+        let string = "Hello Heartbeat\x0a";
+        let buffer = string.as_bytes();
 
-        unsafe {
-            // Create a message box
-            MessageBoxA(
-                std::ptr::null_mut(),
-                lp_text.as_ptr(),
-                lp_caption.as_ptr(),
-                Default::default(),
-            );
-        }
+        // Write to serial port
+        let _ = port.write(buffer);
 
         thread::sleep(Duration::from_millis(2000));
     });
