@@ -8,6 +8,10 @@ use user32::MessageBoxA;
 
 use std::ffi::CString;
 
+use std::thread;
+use std::thread::sleep;
+use std::time::{Duration, Instant};
+
 use libc::c_char;
 use libc::c_float;
 
@@ -32,6 +36,23 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
             Default::default(),
         );
     }
+
+    thread::spawn(move || loop {
+        let lp_text = CString::new("Thread aufgewacht").unwrap();
+        let lp_caption = CString::new("Omsi2Komsi").unwrap();
+
+        unsafe {
+            // Create a message box
+            MessageBoxA(
+                std::ptr::null_mut(),
+                lp_text.as_ptr(),
+                lp_caption.as_ptr(),
+                Default::default(),
+            );
+        }
+
+        thread::sleep(Duration::from_millis(2000));
+    });
 }
 
 // __declspec(dllexport) void __stdcall PluginFinalize()
