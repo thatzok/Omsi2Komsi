@@ -18,6 +18,7 @@ pub struct VehicleState {
     pub lights_main: u8,
     pub lights_front_door: u8,
     pub lights_second_door: u8,
+    pub lights_third_door: u8,
     pub lights_stop_request: u8,
     pub lights_stop_brake: u8,
     pub lights_high_beam: u8,
@@ -37,6 +38,7 @@ pub fn print_vehicle_state(v: &VehicleState) {
     print!("doors:{} ", v.doors);
     print!("door1:{} ", v.lights_front_door);
     print!("door2:{} ", v.lights_second_door);
+    print!("door3:{} ", v.lights_third_door);
     print!("speed:{} ", v.speed);
     print!("maxspeed:{} ", v.maxspeed);
 
@@ -55,6 +57,7 @@ pub fn init_vehicle_state() -> VehicleState {
         lights_main: 0,
         lights_front_door: 0,
         lights_second_door: 0,
+        lights_third_door: 0,
         lights_stop_request: 0,
         maxspeed: 0,
         lights_high_beam: 0,
@@ -249,6 +252,21 @@ pub fn compare_vehicle_states(
          );
         buffer.append(&mut b);
     }
+
+    if (old.lights_third_door != new.lights_third_door) || force {
+        if verbose {
+            println!(
+                "lights_third_door: {} -> {} ",
+                old.lights_third_door, new.lights_third_door
+            );
+        }
+        let mut b = build_komsi_command_u8(
+            KomsiCommandKind::LightsThirdDoor,
+            new.lights_third_door,
+         );
+        buffer.append(&mut b);
+    }
+
 
     if (old.lights_high_beam != new.lights_high_beam) || force {
         if verbose {
