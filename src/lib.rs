@@ -99,11 +99,11 @@ pub fn get_vehicle_state_from_omsi() -> VehicleState {
     let haltewunsch = &SHARED_ARRAY[6];
     s.lights_stop_request = haltewunsch.load(Relaxed) as u8;
 
-    let lightsfern = &SHARED_ARRAY[8];
-    s.lights_high_beam = lightsfern.load(Relaxed) as u8;
-
     let ailight = &SHARED_ARRAY[7];
     let ail = ailight.load(Relaxed) as u8;
+
+    let lightsfern = &SHARED_ARRAY[8];
+    s.lights_high_beam = lightsfern.load(Relaxed) as u8;
 
     // if s.lights_high_beam > 0 {
     //     // Fernlicht erhöht AI_LIGHT um 1, wenn gesetzt
