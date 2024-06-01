@@ -78,7 +78,13 @@ pub fn get_vehicle_state_from_omsi() -> VehicleState {
     }
 
     let engine = &SHARED_ARRAY[1];
-    s.engine = 1 - engine.load(Relaxed) as u8; // TODO manchmal invertieren (1-engine)
+    let engineval = engine.load(Relaxed) as u8;
+
+    // we use the value of the battery light for engine on/off state
+    
+    s.battery_light = engineval;
+
+    s.engine = 1 - engineval; // TODO config file conditional invert or not to invert
 
     let speed = &SHARED_ARRAY[2];
     s.speed = speed.load(Relaxed);
@@ -105,13 +111,8 @@ pub fn get_vehicle_state_from_omsi() -> VehicleState {
     let lightsfern = &SHARED_ARRAY[8];
     s.lights_high_beam = lightsfern.load(Relaxed) as u8;
 
-    // if s.lights_high_beam > 0 {
-    //     // Fernlicht erhöht AI_LIGHT um 1, wenn gesetzt
-    //    ail = ail - 1;
-    // }
-
     if ail > 0 {
-        // TODO andere variable, weil  bei fernlicht immer auf "2"
+        // TODO search different OMSI variable, because this one is always "2" when high beam is active
         s.lights_main = 1;
     }
 

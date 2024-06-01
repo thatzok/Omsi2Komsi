@@ -22,6 +22,7 @@ pub struct VehicleState {
     pub lights_stop_request: u8,
     pub lights_stop_brake: u8,
     pub lights_high_beam: u8,
+    pub battery_light: u8,
 }
 
 pub fn print_vehicle_state(v: &VehicleState) {
@@ -41,6 +42,7 @@ pub fn print_vehicle_state(v: &VehicleState) {
     print!("door3:{} ", v.lights_third_door);
     print!("speed:{} ", v.speed);
     print!("maxspeed:{} ", v.maxspeed);
+    print!("batterylight:{} ", v.battery_light);
 
     println!(" ");
 }
@@ -63,62 +65,8 @@ pub fn init_vehicle_state() -> VehicleState {
         lights_high_beam: 0,
         fuel: 0,
         lights_stop_brake: 0,
+        battery_light: 0,
     };
-    return s;
-}
-
-pub fn get_vehicle_state(av: ApiVehicleType) -> VehicleState {
-    let mut s = init_vehicle_state();
-
-    match av.ignition_enabled.as_str() {
-        "true" => s.ignition = 1,
-        _ => s.ignition = 0,
-    }
-
-    match av.engine_started.as_str() {
-        "true" => s.engine = 1,
-        _ => s.engine = 0,
-    }
-
-    match av.warning_lights.as_str() {
-        "true" => s.lights_warning = 1,
-        _ => s.lights_warning = 0,
-    }
-
-    match av.passenger_doors_open.as_str() {
-        "true" => s.doors = 1,
-        _ => s.doors = 0,
-    }
-
-    match av.fixing_brake.as_str() {
-        "true" => s.fixing_brake = 1,
-        _ => s.fixing_brake = 0,
-    }
-
-    match av.traveller_light.as_str() {
-        "true" => s.lights_high_beam = 1,
-        _ => s.lights_high_beam = 0,
-    }
-
-    // wir prüfen nur ob gesetzt, nicht in welche Richtung (in api: -1,0,1 für links,aus,rechts)
-    match av.indicator_state {
-        0 => s.indicator = 0,  // aus
-        -1 => s.indicator = 1, // an links
-        1 => s.indicator = 2,  // an rechts
-        _ => s.indicator = 0,
-    }
-
-    s.speed = av.speed.abs().round() as u32;
-    s.maxspeed = av.allowed_speed.abs().round() as u32;
-
-    s.fuel = (av.display_fuel * 100.0).trunc() as u32;
-
-    s.lights_main = av.all_lamps.light_main.trunc() as u8;
-    s.lights_front_door = av.all_lamps.front_door_light.trunc() as u8;
-    s.lights_second_door = av.all_lamps.second_door_light.trunc() as u8;
-    s.lights_stop_request = av.all_lamps.led_stop_request.trunc() as u8;
-    s.lights_stop_brake = av.all_lamps.light_stopbrake.trunc() as u8;
-
     return s;
 }
 
@@ -305,6 +253,15 @@ pub fn compare_vehicle_states(
         let mut b = build_komsi_command(KomsiCommandKind::MaxSpeed, new.maxspeed);
         buffer.append(&mut b);
     }
+
+    if (old.battery_light != new.battery_light) || force {
+        if verbose {
+            println!("batterylight:  {} -> {} ", old.battery_light, new.battery_light);
+        }
+        let mut b = build_komsi_command_u8(KomsiCommandKind::BatteryLight, new.battery_light);
+        buffer.append(&mut b);
+    }
+
 
     // zeilenende hinzu, wenn buffer nicht leer
     if buffer.len() > 0 {
