@@ -69,8 +69,81 @@ static SHARED_ARRAY: [AtomicU32; SHARED_ARRAY_SIZE] = [
 pub fn get_vehicle_state_from_omsi() -> VehicleState {
     let mut s = init_vehicle_state();
 
-    let vari = &SHARED_ARRAY[0];
-    s.lights_warning = vari.load(Relaxed) as u8;
+    let ignition = &SHARED_ARRAY[0];
+
+    s.ignition = ignition.load(Relaxed) as u8;
+
+    if s.ignition == 0 {
+        return s;
+    }
+
+    let engine = &SHARED_ARRAY[1];
+    s.engine = 1 - engine.load(Relaxed) as u8; // TODO manchmal invertieren (1-engine)
+
+    let speed = &SHARED_ARRAY[2];
+    s.speed = speed.load(Relaxed);
+
+    let door_light_1 = &SHARED_ARRAY[3];
+    let door_light_2 = &SHARED_ARRAY[4];
+    let door_light_3 = &SHARED_ARRAY[5];
+
+    s.lights_front_door = door_light_1.load(Relaxed) as u8;
+    s.lights_second_door = door_light_2.load(Relaxed) as u8;
+    s.lights_third_door = door_light_3.load(Relaxed) as u8;
+
+    // Türschleife errechnen
+    if s.lights_front_door + s.lights_second_door + s.lights_third_door > 0 {
+        s.doors = 1;
+    }
+
+    let haltewunsch = &SHARED_ARRAY[6];
+    s.lights_stop_request = haltewunsch.load(Relaxed) as u8;
+
+    let lightsfern = &SHARED_ARRAY[8];
+    s.lights_high_beam = lightsfern.load(Relaxed) as u8;
+
+    let ailight = &SHARED_ARRAY[7];
+    let ail = ailight.load(Relaxed) as u8;
+
+    // if s.lights_high_beam > 0 {
+    //     // Fernlicht erhöht AI_LIGHT um 1, wenn gesetzt
+    //    ail = ail - 1;
+    // }
+
+    if ail > 0 {
+        // TODO andere variable, weil  bei fernlicht immer auf "2"
+        s.lights_main = 1;
+    }
+
+    let fixing_brake = &SHARED_ARRAY[9];
+    s.fixing_brake = fixing_brake.load(Relaxed) as u8;
+
+    let aileft = &SHARED_ARRAY[10];
+    let airight = &SHARED_ARRAY[11];
+    let ail = aileft.load(Relaxed);
+    let air = airight.load(Relaxed);
+
+    let aisum = ail + air;
+
+    if aisum == 1 {
+        // Blinker
+        if ail == 1 {
+            s.indicator = 1
+        } else {
+            s.indicator = 2;
+        }
+    }
+
+    if aisum > 1 {
+        // warnblinker
+        s.lights_warning = 1;
+    }
+
+    let fuel = &SHARED_ARRAY[12];
+    s.fuel = fuel.load(Relaxed);
+
+    let stop_brake = &SHARED_ARRAY[13];
+    s.lights_stop_brake = stop_brake.load(Relaxed) as u8;
 
     return s;
 }
@@ -120,9 +193,18 @@ pub unsafe extern "stdcall" fn AccessVariable(
 
     if index < SHARED_ARRAY_SIZE {
         let f = *value;
-        let a = f.round() as u32;
-        let vari = &SHARED_ARRAY[index];
-        vari.store(a, Relaxed);
+        if index == 12 {
+            // sonderbehandlung bei "tankinhalt in %"
+            let hun = 100 as f32;
+            let b = f.abs() * hun;
+            let a = b.round() as u32;
+            let vari = &SHARED_ARRAY[index];
+            vari.store(a, Relaxed);
+        } else {
+            let a = f.abs().round() as u32;
+            let vari = &SHARED_ARRAY[index];
+            vari.store(a, Relaxed);
+        }
     }
 }
 
