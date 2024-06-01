@@ -4,9 +4,6 @@ mod opts;
 mod serial;
 mod vehicle;
 
-// extern crate user32;
-// extern crate winapi;
-
 use windows::{Win32::Foundation::*, Win32::System::SystemServices::*};
 
 use user32::MessageBoxA;
@@ -24,21 +21,56 @@ use libc::c_char;
 use libc::c_float;
 use std::sync::atomic::{self, AtomicU32};
 
-use crate::opts::Opts;
-use crate::vehicle::VehicleState;
+// use crate::opts::Opts;
 use crate::vehicle::compare_vehicle_states;
 use crate::vehicle::init_vehicle_state;
-
+use crate::vehicle::VehicleState;
 
 #[allow(non_camel_case_types)]
 pub type uintptr_t = usize;
 
-static SHARED_PLUGIN_NUM: AtomicU32 = AtomicU32::new(0);
+// static SHARED_PLUGIN_NUM: AtomicU32 = AtomicU32::new(0);
+
+const SHARED_ARRAY_SIZE: usize = 30;
+
+static SHARED_ARRAY: [AtomicU32; SHARED_ARRAY_SIZE] = [
+    AtomicU32::new(0),
+    AtomicU32::new(0),
+    AtomicU32::new(0),
+    AtomicU32::new(0),
+    AtomicU32::new(0),
+    AtomicU32::new(0),
+    AtomicU32::new(0),
+    AtomicU32::new(0),
+    AtomicU32::new(0),
+    AtomicU32::new(0),
+    AtomicU32::new(0),
+    AtomicU32::new(0),
+    AtomicU32::new(0),
+    AtomicU32::new(0),
+    AtomicU32::new(0),
+    AtomicU32::new(0),
+    AtomicU32::new(0),
+    AtomicU32::new(0),
+    AtomicU32::new(0),
+    AtomicU32::new(0),
+    AtomicU32::new(0),
+    AtomicU32::new(0),
+    AtomicU32::new(0),
+    AtomicU32::new(0),
+    AtomicU32::new(0),
+    AtomicU32::new(0),
+    AtomicU32::new(0),
+    AtomicU32::new(0),
+    AtomicU32::new(0),
+    AtomicU32::new(0),
+];
 
 pub fn get_vehicle_state_from_omsi() -> VehicleState {
     let mut s = init_vehicle_state();
 
-    s.lights_warning = SHARED_PLUGIN_NUM.load(Relaxed) as u8;
+    let vari = &SHARED_ARRAY[0];
+    s.lights_warning = vari.load(Relaxed) as u8;
 
     return s;
 }
@@ -54,7 +86,6 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
         .expect("Failed to open serial port");
 
     let mut vehicle_state = init_vehicle_state();
-
 
     thread::spawn(move || loop {
         // get data from OMSI
@@ -75,20 +106,6 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
     });
 }
 
-// __declspec(dllexport) void __stdcall PluginFinalize()
-// This function links our DLL to Omsi 2, thus it cannot be Safe (raw pointers, etc...)
-#[allow(non_snake_case, unused_variables)]
-#[no_mangle]
-#[export_name = "PluginFinalize"]
-pub unsafe extern "stdcall" fn PluginFinalize() {}
-
-// __declspec(dllexport) void __stdcall AccessTrigger(unsigned short triggerindex, bool* active)
-// This function links our DLL to Omsi 2, thus it cannot be Safe (raw pointers, etc...)
-#[allow(non_snake_case, unused_variables)]
-#[no_mangle]
-#[export_name = "AccessTrigger"]
-pub unsafe extern "stdcall" fn AccessTrigger(variableIndex: u8, triggerScript: *const bool) {}
-
 // __declspec(dllexport) void __stdcall AccessVariable(unsigned short varindex, float* value, bool* write)
 // This function links our DLL to Omsi 2, thus it cannot be Safe (raw pointers, etc...)
 #[allow(non_snake_case, unused_variables)]
@@ -99,11 +116,13 @@ pub unsafe extern "stdcall" fn AccessVariable(
     value: *const c_float,
     writeValue: *const bool,
 ) {
-    if variableIndex == 0 {
+    let index = variableIndex as usize;
+
+    if index < SHARED_ARRAY_SIZE {
         let f = *value;
         let a = f.round() as u32;
-
-        SHARED_PLUGIN_NUM.store(a, Relaxed)
+        let vari = &SHARED_ARRAY[index];
+        vari.store(a, Relaxed);
     }
 }
 
@@ -130,3 +149,17 @@ pub unsafe extern "stdcall" fn AccessSystemVariable(
     writeValue: *const bool,
 ) {
 }
+
+// __declspec(dllexport) void __stdcall AccessTrigger(unsigned short triggerindex, bool* active)
+// This function links our DLL to Omsi 2, thus it cannot be Safe (raw pointers, etc...)
+#[allow(non_snake_case, unused_variables)]
+#[no_mangle]
+#[export_name = "AccessTrigger"]
+pub unsafe extern "stdcall" fn AccessTrigger(variableIndex: u8, triggerScript: *const bool) {}
+
+// __declspec(dllexport) void __stdcall PluginFinalize()
+// This function links our DLL to Omsi 2, thus it cannot be Safe (raw pointers, etc...)
+#[allow(non_snake_case, unused_variables)]
+#[no_mangle]
+#[export_name = "PluginFinalize"]
+pub unsafe extern "stdcall" fn PluginFinalize() {}

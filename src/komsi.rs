@@ -36,7 +36,7 @@ pub enum KomsiCommandKind {
     A32 = 102,               // f
 
     MaxSpeed = 115, // s max speed - used
-    Gt = 116,       // t RPM
+    Gt = 116,       // t RPM - not used
     Gu = 117,       // u Pressure - not used
     Gv = 118,       // v Temperature  - not used
     Gw = 119,       // w Oil  - not used

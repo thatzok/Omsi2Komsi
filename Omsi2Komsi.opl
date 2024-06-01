@@ -5,6 +5,7 @@ Omsi2Komsi.dll
 
 [varlist]
 23
+lights_warnblinkgeber
 door_light_1
 door_light_2
 elec_busbar_main
@@ -19,7 +20,6 @@ cockpit_light_masterfailure
 engine_tank_content
 bremse_ABS_eingriff
 cockpit_light_tuerkontrolle
-lights_warnblinkgeber
 cockpit_light_retarder_direkt
 lights_stand
 cockpit_light_ASR_off
