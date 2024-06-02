@@ -1,36 +1,47 @@
-# TheBus2Komsi
+# Omsi2Komsi
 
-TheBus2Komsi is an API-Client for the TheBus Bus Simulator.<br>
+Omsi2Komsi is a plugin DLL for the bus simulator "OMSI 2".<br>
 
-TheBus2Komsi reads information (for speed, lamps, etc.) from the TheBus telemetry-API and sends them to the serial port (USB) using the KOMSI protocol.
+Omsi2Komsi reads information (for speed, lamps, etc.) from OMSI 2 and sends them to the serial port (USB) using the KOMSI protocol.
 
 An Arduino/ESP32 or similar connected to the USB port can then read these messages and display the data on a bus dashboard (e.g. speed on a speedometer, lamp lighting, etc.).
 
 ## Usage
 
-The configuration is done via the file TheBus2Komsi.ini, which must be located in the same directory as TheBus2Komsi.exe.
+* Copy both files Omsi2Komsi.exe and Omsi2Komsi.opl into the plugin directory of OMSI 2
+* Edit the file Omsi2Komsi.opl and change the portname to the one where your Arduino/ESP32 is connected to
+* Start OMSI 2
+
+The configuration is done via the file Omsi2Komsi.opl, which must be located in the same OMSI 2 plugin directory where TheBus2Komsi.exe is located.
 
 ```
-# TheBus2Komsi.ini
-# This file must be in the same directory as TheBus2Komsi.exe
-#
-# Normally you only need to change the portname to the one your are using
-# 
-# If you don't know which comport your Arduino/ESP32 is connected to, you can start the program with
-# TheBus2Komsi -l
+Rename this file to Omsi2Komsi.opl
 
-[default]
+[dll]
+Omsi2Komsi.dll
+
+[varlist]
+14
+elec_busbar_main
+cockpit_light_batterie
+Velocity
+door_light_1
+door_light_2
+door_light_3
+haltewunsch
+AI_Light
+lights_fern
+cockpit_light_feststellbremse
+AI_Blinker_L
+AI_Blinker_R
+tank_percent
+bremse_halte
+
+[omsi2komsi]
 portname = com22
 baudrate = 115200
-sleeptime = 200
-ip = 127.0.0.1
+engineonvalue = 1
 ```
 
-
-To get a list of all command line parameters, start the program with the "--help" option.
-
-  ```sh
-  TheBus2Komsi --help
-  ```
 
 Have fun!
