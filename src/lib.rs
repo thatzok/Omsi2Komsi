@@ -29,8 +29,6 @@ use crate::vehicle::VehicleState;
 #[allow(non_camel_case_types)]
 pub type uintptr_t = usize;
 
-// static SHARED_PLUGIN_NUM: AtomicU32 = AtomicU32::new(0);
-
 const SHARED_ARRAY_SIZE: usize = 30;
 
 static SHARED_ARRAY: [AtomicU32; SHARED_ARRAY_SIZE] = [
@@ -81,7 +79,7 @@ pub fn get_vehicle_state_from_omsi() -> VehicleState {
     let engineval = engine.load(Relaxed) as u8;
 
     // we use the value of the battery light for engine on/off state
-    
+
     s.battery_light = engineval;
 
     s.engine = 1 - engineval; // TODO config file conditional invert or not to invert
@@ -136,7 +134,7 @@ pub fn get_vehicle_state_from_omsi() -> VehicleState {
     }
 
     if aisum > 1 {
-        // warnblinker
+        // when left and right both are on its warning lights
         s.lights_warning = 1;
     }
 
@@ -160,6 +158,11 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
         .expect("Failed to open serial port");
 
     let mut vehicle_state = init_vehicle_state();
+
+    // send SimulatorType:OMSI
+    let string = "O0\x0a";
+    let buffer = string.as_bytes();
+    let _ = port.write(buffer);
 
     thread::spawn(move || loop {
         // get data from OMSI
@@ -195,7 +198,7 @@ pub unsafe extern "stdcall" fn AccessVariable(
     if index < SHARED_ARRAY_SIZE {
         let f = *value;
         if index == 12 {
-            // sonderbehandlung bei "tankinhalt in %"
+            // special case for fuel tank, because it is percentage
             let hun = 100 as f32;
             let b = f.abs() * hun;
             let a = b.round() as u32;
