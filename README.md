@@ -1,6 +1,6 @@
 # Omsi2Komsi
 
-Omsi2Komsi is a plugin DLL for the bus simulator "OMSI 2".<br>
+Omsi2Komsi is a plugin DLL for the "OMSI 2" bus simulator .<br>
 
 Omsi2Komsi reads information (for speed, lamps, etc.) from OMSI 2 and sends them to the serial port (USB) using the KOMSI protocol.
 
