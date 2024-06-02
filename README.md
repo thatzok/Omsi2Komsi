@@ -8,11 +8,11 @@ An Arduino/ESP32 or similar connected to the USB port can then read these messag
 
 ## Usage
 
-* Copy both files Omsi2Komsi.exe and Omsi2Komsi.opl into the plugin directory of OMSI 2
+* Copy both files Omsi2Komsi.dll and Omsi2Komsi.opl into the plugin directory of OMSI 2
 * Edit the file Omsi2Komsi.opl and change the portname to the one where your Arduino/ESP32 is connected to
 * Start OMSI 2
 
-The configuration is done via the file Omsi2Komsi.opl, which must be located in the same OMSI 2 plugin directory where TheBus2Komsi.exe is located.
+The configuration is done via the file Omsi2Komsi.opl, which must be located in the same OMSI 2 plugin directory where Omsi2Komsi.dll is located.
 
 ```
 Rename this file to Omsi2Komsi.opl
