@@ -1,7 +1,4 @@
-mod api;
 mod komsi;
-mod opts;
-mod serial;
 mod vehicle;
 
 use windows::{Win32::Foundation::*, Win32::System::SystemServices::*};
@@ -20,6 +17,8 @@ use core::sync::atomic::Ordering::Relaxed;
 use libc::c_char;
 use libc::c_float;
 use std::sync::atomic::{self, AtomicU32};
+
+use configparser::ini::Ini;
 
 // use crate::opts::Opts;
 use crate::vehicle::compare_vehicle_states;
@@ -64,7 +63,7 @@ static SHARED_ARRAY: [AtomicU32; SHARED_ARRAY_SIZE] = [
     AtomicU32::new(0),
 ];
 
-pub fn get_vehicle_state_from_omsi() -> VehicleState {
+pub fn get_vehicle_state_from_omsi(engineonvalue: u8) -> VehicleState {
     let mut s = init_vehicle_state();
 
     let ignition = &SHARED_ARRAY[0];
@@ -77,12 +76,12 @@ pub fn get_vehicle_state_from_omsi() -> VehicleState {
 
     let engine = &SHARED_ARRAY[1];
     let engineval = engine.load(Relaxed) as u8;
-
-    // we use the value of the battery light for engine on/off state
-
     s.battery_light = engineval;
 
-    s.engine = 1 - engineval; // TODO config file conditional invert or not to invert
+    // we use the value of the battery light for engine on/off state
+    if engineval == engineonvalue {
+        s.engine = 1;
+    }
 
     let speed = &SHARED_ARRAY[2];
     s.speed = speed.load(Relaxed);
@@ -147,13 +146,29 @@ pub fn get_vehicle_state_from_omsi() -> VehicleState {
     return s;
 }
 
+
 // __declspec(dllexport) void __stdcall PluginStart(void* aOwner)
 // This function links our DLL to Omsi 2, thus it cannot be Safe (raw pointers, etc...)
 #[allow(non_snake_case, unused_variables)]
 #[no_mangle]
 #[export_name = "PluginStart"]
 pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
-    let mut port = serialport::new("COM22", 115200)
+    // load config
+
+    // TODO checking for file not found and elements not found
+    // now we get config ini
+    let mut config = Ini::new();
+    let _ = config.load(".\\plugins\\Omsi2Komsi.opl");
+
+    let baudrate = config.getint("omsi2komsi", "baudrate").unwrap().unwrap() as u32;
+    let portname = config.get("omsi2komsi", "portname").unwrap();
+
+    let engineonvalue = config
+        .getint("omsi2komsi", "engineonvalue")
+        .unwrap()
+        .unwrap() as u8;
+
+    let mut port = serialport::new(portname, baudrate)
         .open()
         .expect("Failed to open serial port");
 
@@ -166,7 +181,7 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
 
     thread::spawn(move || loop {
         // get data from OMSI
-        let newstate = get_vehicle_state_from_omsi();
+        let newstate = get_vehicle_state_from_omsi(engineonvalue);
 
         // compare and create cmd buf
         let cmdbuf = compare_vehicle_states(&vehicle_state, &newstate, false);

@@ -20,6 +20,7 @@ AI_Blinker_R
 tank_percent
 bremse_halte
 
-[OMSI2KOMSI]
-COMx=22
-BAUD_RATE=115200
+[omsi2komsi]
+portname = com22
+baudrate = 115200
+engineonvalue = 1

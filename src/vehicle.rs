@@ -1,8 +1,7 @@
-use crate::api::ApiVehicleType;
+use crate::komsi::KomsiCommandKind;
 use crate::komsi::build_komsi_command;
 use crate::komsi::build_komsi_command_u8;
-use crate::komsi::KomsiCommandKind;
-use crate::opts::Opts;
+use crate::komsi::build_komsi_command_eol;
 
 #[derive(Debug)]
 pub struct VehicleState {
@@ -265,9 +264,8 @@ pub fn compare_vehicle_states(
 
     // zeilenende hinzu, wenn buffer nicht leer
     if buffer.len() > 0 {
-        let cmd = KomsiCommandKind::EOL as u8;
-        let mut cb: Vec<u8> = vec![cmd];
-        buffer.append(&mut cb);
+        let mut b = build_komsi_command_eol();
+        buffer.append(&mut b);
     }
 
     return buffer;
