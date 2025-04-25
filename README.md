@@ -2,7 +2,7 @@
 
 Omsi2Komsi is a plugin DLL for the "OMSI 2" bus simulator .<br>
 
-Omsi2Komsi reads information (for speed, lamps, etc.) from OMSI 2 and sends them to the serial port (USB) using the KOMSI protocol.
+Omsi2Komsi reads information (for speed, lamps, etc.) from OMSI 2 and sends them to the serial port (USB) using the [KOMSI protocol](https://github.com/thatzok/Komsi-Protocol)
 
 An Arduino/ESP32 or similar connected to the USB port can then read these messages and display the data on a bus dashboard (e.g. speed on a speedometer, lamp lighting, etc.).
 
