@@ -1,22 +1,24 @@
+#![allow(dead_code)]
+
 mod komsi;
 mod vehicle;
 
-use windows::{Win32::Foundation::*, Win32::System::SystemServices::*};
+// use windows::{Win32::Foundation::*, Win32::System::SystemServices::*};
 
-use user32::MessageBoxA;
+// use user32::MessageBoxA;
 // use winapi::winuser::{MB_OK, MB_ICONINFORMATION};
 
-use std::ffi::CString;
-use std::io;
+// use std::ffi::CString;
+// use std::io;
 
 use std::thread;
-use std::thread::sleep;
-use std::time::{Duration, Instant};
+// use std::thread::sleep;
+use std::time::{Duration};
 
 use core::sync::atomic::Ordering::Relaxed;
 use libc::c_char;
 use libc::c_float;
-use std::sync::atomic::{self, AtomicU32};
+use std::sync::atomic::{ AtomicU32};
 
 use configparser::ini::Ini;
 
@@ -147,11 +149,18 @@ pub fn get_vehicle_state_from_omsi(engineonvalue: u8) -> VehicleState {
 }
 
 
-// __declspec(dllexport) void __stdcall PluginStart(void* aOwner)
-// This function links our DLL to Omsi 2, thus it cannot be Safe (raw pointers, etc...)
+/// This function is called when the plugin is loaded by Omsi 2.
+///
+/// Original C declaration:
+/// ```c
+/// __declspec(dllexport) void __stdcall PluginStart(void* aOwner)
+/// ```
+///
+/// # Safety
+/// This function links our DLL to Omsi 2, thus it cannot be Safe (raw pointers, etc...)
 #[allow(non_snake_case, unused_variables)]
-#[no_mangle]
-#[export_name = "PluginStart"]
+// #[unsafe(no_mangle)]
+#[unsafe(export_name = "PluginStart")]
 pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
     // load config
 
@@ -198,11 +207,23 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
     });
 }
 
-// __declspec(dllexport) void __stdcall AccessVariable(unsigned short varindex, float* value, bool* write)
-// This function links our DLL to Omsi 2, thus it cannot be Safe (raw pointers, etc...)
+/// This function is called by Omsi 2 to access variables from the plugin.
+///
+/// Original C declaration:
+/// ```c
+/// __declspec(dllexport) void __stdcall AccessVariable(unsigned short varindex, float* value, bool* write)
+/// ```
+///
+/// # Parameters
+/// * `variableIndex` - The index of the variable to access
+/// * `value` - Pointer to the float value to read or write
+/// * `writeValue` - Pointer to a boolean indicating whether to write the value
+///
+/// # Safety
+/// This function links our DLL to Omsi 2, thus it cannot be Safe (raw pointers, etc...)
 #[allow(non_snake_case, unused_variables)]
-#[no_mangle]
-#[export_name = "AccessVariable"]
+// #[unsafe(no_mangle)]
+#[unsafe(export_name = "AccessVariable")]
 pub unsafe extern "stdcall" fn AccessVariable(
     variableIndex: u8,
     value: *const c_float,
@@ -210,28 +231,42 @@ pub unsafe extern "stdcall" fn AccessVariable(
 ) {
     let index = variableIndex as usize;
 
-    if index < SHARED_ARRAY_SIZE {
-        let f = *value;
-        if index == 12 {
-            // special case for fuel tank, because it is percentage
-            let hun = 100 as f32;
-            let b = f.abs() * hun;
-            let a = b.round() as u32;
-            let vari = &SHARED_ARRAY[index];
-            vari.store(a, Relaxed);
-        } else {
-            let a = f.abs().round() as u32;
-            let vari = &SHARED_ARRAY[index];
-            vari.store(a, Relaxed);
+    unsafe {
+        if index < SHARED_ARRAY_SIZE {
+            let f = *value;
+            if index == 12 {
+                // special case for fuel tank, because it is percentage
+                let hun = 100 as f32;
+                let b = f.abs() * hun;
+                let a = b.round() as u32;
+                let vari = &SHARED_ARRAY[index];
+                vari.store(a, Relaxed);
+            } else {
+                let a = f.abs().round() as u32;
+                let vari = &SHARED_ARRAY[index];
+                vari.store(a, Relaxed);
+            }
         }
     }
 }
 
-// __declspec(dllexport) void __stdcall AccessStringVariable(unsigned short varindex, wchar_t* value, bool* write)
-// This function links our DLL to Omsi 2, thus it cannot be Safe (raw pointers, etc...)
+/// This function is called by Omsi 2 to access string variables from the plugin.
+///
+/// Original C declaration:
+/// ```c
+/// __declspec(dllexport) void __stdcall AccessStringVariable(unsigned short varindex, wchar_t* value, bool* write)
+/// ```
+///
+/// # Parameters
+/// * `variableIndex` - The index of the string variable to access
+/// * `firstCharacterAddress` - Pointer to the first character of the string
+/// * `writeValue` - Pointer to a boolean indicating whether to write the value
+///
+/// # Safety
+/// This function links our DLL to Omsi 2, thus it cannot be Safe (raw pointers, etc...)
 #[allow(non_snake_case, unused_variables)]
-#[no_mangle]
-#[export_name = "AccessStringVariable"]
+// #[unsafe(no_mangle)]
+#[unsafe(export_name = "AccessStringVariable")]
 pub unsafe extern "stdcall" fn AccessStringVariable(
     variableIndex: u8,
     firstCharacterAddress: *const c_char,
@@ -239,11 +274,23 @@ pub unsafe extern "stdcall" fn AccessStringVariable(
 ) {
 }
 
-// __declspec(dllexport) void __stdcall AccessSystemVariable(unsigned short varindex, float* value)
-// This function links our DLL to Omsi 2, thus it cannot be Safe (raw pointers, etc...)
+/// This function is called by Omsi 2 to access system variables from the plugin.
+///
+/// Original C declaration:
+/// ```c
+/// __declspec(dllexport) void __stdcall AccessSystemVariable(unsigned short varindex, float* value)
+/// ```
+///
+/// # Parameters
+/// * `variableIndex` - The index of the system variable to access
+/// * `value` - Pointer to the float value to read or write
+/// * `writeValue` - Pointer to a boolean indicating whether to write the value
+///
+/// # Safety
+/// This function links our DLL to Omsi 2, thus it cannot be Safe (raw pointers, etc...)
 #[allow(non_snake_case, unused_variables)]
-#[no_mangle]
-#[export_name = "AccessSystemVariable"]
+// #[unsafe(no_mangle)]
+#[unsafe(export_name = "AccessSystemVariable")]
 pub unsafe extern "stdcall" fn AccessSystemVariable(
     variableIndex: u8,
     value: *const c_float,
@@ -251,16 +298,34 @@ pub unsafe extern "stdcall" fn AccessSystemVariable(
 ) {
 }
 
-// __declspec(dllexport) void __stdcall AccessTrigger(unsigned short triggerindex, bool* active)
-// This function links our DLL to Omsi 2, thus it cannot be Safe (raw pointers, etc...)
+/// This function is called by Omsi 2 to access triggers from the plugin.
+///
+/// Original C declaration:
+/// ```c
+/// __declspec(dllexport) void __stdcall AccessTrigger(unsigned short triggerindex, bool* active)
+/// ```
+///
+/// # Parameters
+/// * `variableIndex` - The index of the trigger to access
+/// * `triggerScript` - Pointer to a boolean indicating whether the trigger is active
+///
+/// # Safety
+/// This function links our DLL to Omsi 2, thus it cannot be Safe (raw pointers, etc...)
 #[allow(non_snake_case, unused_variables)]
-#[no_mangle]
-#[export_name = "AccessTrigger"]
+// #[unsafe(no_mangle)]
+#[unsafe(export_name = "AccessTrigger")]
 pub unsafe extern "stdcall" fn AccessTrigger(variableIndex: u8, triggerScript: *const bool) {}
 
-// __declspec(dllexport) void __stdcall PluginFinalize()
-// This function links our DLL to Omsi 2, thus it cannot be Safe (raw pointers, etc...)
+/// This function is called when the plugin is unloaded by Omsi 2.
+///
+/// Original C declaration:
+/// ```c
+/// __declspec(dllexport) void __stdcall PluginFinalize()
+/// ```
+///
+/// # Safety
+/// This function links our DLL to Omsi 2, thus it cannot be Safe (raw pointers, etc...)
 #[allow(non_snake_case, unused_variables)]
-#[no_mangle]
-#[export_name = "PluginFinalize"]
+// #[unsafe(no_mangle)]
+#[unsafe(export_name = "PluginFinalize")]
 pub unsafe extern "stdcall" fn PluginFinalize() {}
