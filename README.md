@@ -15,7 +15,6 @@ An Arduino/ESP32 or similar connected to the USB port can then read these messag
 The configuration is done via the file omsi2komsi.opl, which must be located in the same OMSI 2 plugin directory where omsi2komsi.dll is located.
 
 ```
-Rename this file to omsi2komsi.opl
 
 [dll]
 omsi2komsi.dll

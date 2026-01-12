@@ -157,7 +157,7 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
     // TODO checking for file not found and elements not found
     // now we get config ini
     let mut config = Ini::new();
-    let _ = config.load(".\\plugins\\Omsi2Komsi.opl");
+    let _ = config.load(".\\plugins\\omsi2komsi.opl");
 
     let baudrate = config.getint("omsi2komsi", "baudrate").unwrap().unwrap() as u32;
     let portname = config.get("omsi2komsi", "portname").unwrap();

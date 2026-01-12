@@ -1,4 +1,3 @@
-Rename this file to omsilogger.opl
 
 [dll]
 omsiLogger.dll
@@ -19,3 +18,6 @@ AI_Blinker_L
 AI_Blinker_R
 tank_percent
 bremse_halte
+
+[hotkey]
+0x7B
