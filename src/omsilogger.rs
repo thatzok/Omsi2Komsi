@@ -278,7 +278,7 @@ fn run_gui() {
             }
 
             if is_visible {
-                let _ = InvalidateRect(Some(hwnd), None, true);
+                let _ = InvalidateRect(Some(hwnd), None, false);
             }
 
             thread::sleep(Duration::from_millis(16));
@@ -295,6 +295,9 @@ extern "system" fn wndproc(window: windows::Win32::Foundation::HWND, message: u3
 
     unsafe {
         match message {
+            WM_ERASEBKGND => {
+                LRESULT(1) // Tell Windows we handled it to prevent flickering
+            }
             WM_PAINT => {
                 let mut ps = PAINTSTRUCT::default();
                 let hdc = BeginPaint(window, &mut ps);
@@ -302,15 +305,20 @@ extern "system" fn wndproc(window: windows::Win32::Foundation::HWND, message: u3
                 let mut rect = RECT::default();
                 let _ = GetClientRect(window, &mut rect);
 
+                // Double Buffering
+                let mem_hdc = CreateCompatibleDC(Some(hdc));
+                let mem_bitmap = CreateCompatibleBitmap(hdc, rect.right - rect.left, rect.bottom - rect.top);
+                let old_bitmap = SelectObject(mem_hdc, HGDIOBJ(mem_bitmap.0));
+
                 let hbr = CreateSolidBrush(COLORREF(0x000000)); // Black background
-                FillRect(hdc, &rect, hbr);
+                FillRect(mem_hdc, &rect, hbr);
                 let _ = DeleteObject(HGDIOBJ(hbr.0));
 
-                SetTextColor(hdc, COLORREF(0x00FF00)); // Green text
-                SetBkMode(hdc, TRANSPARENT);
+                SetTextColor(mem_hdc, COLORREF(0x00FF00)); // Green text
+                SetBkMode(mem_hdc, TRANSPARENT);
 
                 if let Ok(messages) = LOG_MESSAGES.lock() {
-                    let mut y = 5;
+                    let mut y = rect.bottom - 25;
                     for msg in messages.iter().rev() {
                         let mut r = RECT {
                             left: 5,
@@ -319,13 +327,19 @@ extern "system" fn wndproc(window: windows::Win32::Foundation::HWND, message: u3
                             bottom: y + 20,
                         };
                         let mut wide_msg: Vec<u16> = msg.encode_utf16().chain(std::iter::once(0)).collect();
-                        DrawTextW(hdc, &mut wide_msg, &mut r, DT_LEFT | DT_SINGLELINE);
-                        y += 20;
-                        if y > rect.bottom {
+                        DrawTextW(mem_hdc, &mut wide_msg, &mut r, DT_LEFT | DT_SINGLELINE);
+                        y -= 20;
+                        if y < 0 {
                             break;
                         }
                     }
                 }
+
+                let _ = BitBlt(hdc, 0, 0, rect.right - rect.left, rect.bottom - rect.top, Some(mem_hdc), 0, 0, SRCCOPY);
+                
+                let _ = SelectObject(mem_hdc, old_bitmap);
+                let _ = DeleteObject(HGDIOBJ(mem_bitmap.0));
+                let _ = DeleteDC(mem_hdc);
 
                 let _ = EndPaint(window, &ps);
                 LRESULT(0)
