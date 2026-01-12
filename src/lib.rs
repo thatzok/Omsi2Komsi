@@ -1,30 +1,21 @@
 #![allow(dead_code)]
+#[cfg(not(target_arch = "x86"))]
+compile_error!("This plugin must be compiled for x86 (32-bit) to be compatible with OMSI!");
 
 mod komsi;
 mod vehicle;
 
-// use windows::{Win32::Foundation::*, Win32::System::SystemServices::*};
-
-// use user32::MessageBoxA;
-// use winapi::winuser::{MB_OK, MB_ICONINFORMATION};
-
-// use std::ffi::CString;
-// use std::io;
-
-use std::thread;
-// use std::thread::sleep;
-use std::time::{Duration};
-
+use configparser::ini::Ini;
 use core::sync::atomic::Ordering::Relaxed;
 use libc::c_char;
 use libc::c_float;
-use std::sync::atomic::{ AtomicU32};
+use std::sync::atomic::AtomicU32;
+use std::thread;
+use std::time::Duration;
 
-use configparser::ini::Ini;
-
-// use crate::opts::Opts;
 use crate::vehicle::compare_vehicle_states;
 use crate::vehicle::init_vehicle_state;
+// use crate::opts::Opts;
 use crate::vehicle::VehicleState;
 
 #[allow(non_camel_case_types)]
@@ -148,7 +139,6 @@ pub fn get_vehicle_state_from_omsi(engineonvalue: u8) -> VehicleState {
     return s;
 }
 
-
 /// This function is called when the plugin is loaded by Omsi 2.
 ///
 /// Original C declaration:
@@ -188,22 +178,24 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
     let buffer = string.as_bytes();
     let _ = port.write(buffer);
 
-    thread::spawn(move || loop {
-        // get data from OMSI
-        let newstate = get_vehicle_state_from_omsi(engineonvalue);
+    thread::spawn(move || {
+        loop {
+            // get data from OMSI
+            let newstate = get_vehicle_state_from_omsi(engineonvalue);
 
-        // compare and create cmd buf
-        let cmdbuf = compare_vehicle_states(&vehicle_state, &newstate, false);
+            // compare and create cmd buf
+            let cmdbuf = compare_vehicle_states(&vehicle_state, &newstate, false);
 
-        // replace after compare for next round
-        vehicle_state = newstate;
+            // replace after compare for next round
+            vehicle_state = newstate;
 
-        if cmdbuf.len() > 0 {
-            // Write to serial port
-            let _ = port.write(&cmdbuf);
+            if cmdbuf.len() > 0 {
+                // Write to serial port
+                let _ = port.write(&cmdbuf);
+            }
+
+            thread::sleep(Duration::from_millis(100));
         }
-
-        thread::sleep(Duration::from_millis(100));
     });
 }
 

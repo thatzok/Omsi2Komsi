@@ -1,7 +1,7 @@
-Rename this file to Omsi2Komsi.opl
+Rename this file to omsilogger.opl
 
 [dll]
-Omsi2Komsi.dll
+omsiLogger.dll
 
 [varlist]
 14
@@ -19,8 +19,3 @@ AI_Blinker_L
 AI_Blinker_R
 tank_percent
 bremse_halte
-
-[omsi2komsi]
-portname = com22
-baudrate = 115200
-engineonvalue = 1

@@ -1,0 +1,26 @@
+Rename this file to omsi2komsi.opl
+
+[dll]
+omsi2komsi.dll
+
+[varlist]
+14
+elec_busbar_main
+cockpit_light_batterie
+Velocity
+door_light_1
+door_light_2
+door_light_3
+haltewunsch
+AI_Light
+lights_fern
+cockpit_light_feststellbremse
+AI_Blinker_L
+AI_Blinker_R
+tank_percent
+bremse_halte
+
+[omsi2komsi]
+portname = com22
+baudrate = 115200
+engineonvalue = 1

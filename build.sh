@@ -1,3 +1,4 @@
-cargo build --target=i686-pc-windows-msvc
+cargo build --release
+cargo build --release --example omsilogger
 
 
