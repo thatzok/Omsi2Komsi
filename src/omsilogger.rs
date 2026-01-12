@@ -33,7 +33,7 @@ pub unsafe extern "stdcall" fn PluginStart(_a_owner: uintptr_t) {
 
     // Read varlist from .opl file manually
     let mut var_names = Vec::new();
-    let mut hotkey_val = 0x7A; // Default F11
+    let mut hotkey_val = 0x79; // Default F10
     if let Ok(file) = File::open(opl_path) {
         let reader = BufReader::new(file);
         let mut in_varlist = false;
@@ -90,7 +90,7 @@ pub unsafe extern "stdcall" fn PluginStart(_a_owner: uintptr_t) {
 
     // Hotkey Listener Thread
     thread::spawn(move || {
-        let hotkey = *HOTKEY.get().unwrap_or(&0x7A);
+        let hotkey = *HOTKEY.get().unwrap_or(&0x79);
         let mut pressed = false;
         loop {
             unsafe {

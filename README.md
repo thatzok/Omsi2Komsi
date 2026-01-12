@@ -52,7 +52,7 @@ OmsiLogger is a diagnostic tool that displays real-time values of OMSI 2 variabl
 #### Usage
 
 1. Copy `omsilogger.dll` (compiled from the example) and `omsilogger.opl` into the `plugins` directory.
-2. By default, press **F11** to toggle the logger window visibility.
+2. By default, press **F10** to toggle the logger window visibility.
 3. It will log the changed values defined in `omsilogger.opl` to a file named `omsilogger_YYYY-MM-DD.txt` in the OMSI 2 directory.
 
 The configuration file `omsilogger.opl` allows you to define the variables to monitor and the hotkey:
@@ -67,9 +67,9 @@ Velocity
 engine_n
 
 [hotkey]
-0x7A
+0x79
 ```
-*(0x7A is the virtual key code for F11)*
+*(0x79 is the virtual key code for F10)*
 
 ## Development
 
