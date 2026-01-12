@@ -112,7 +112,7 @@ pub unsafe extern "stdcall" fn PluginStart(_a_owner: uintptr_t) {
     thread::spawn(move || {
         let mut last_values = vec![0u32; SHARED_ARRAY_SIZE];
         let now_date = chrono::Local::now().format("%Y-%m-%d").to_string();
-        let log_file_path = format!("omsilogger_{}.log", now_date);
+        let log_file_path = format!("omsilogger_{}.txt", now_date);
 
         // Write a start message
         if let Ok(mut file) = OpenOptions::new()
