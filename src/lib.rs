@@ -38,6 +38,7 @@ static HOTKEY: OnceLock<u32> = OnceLock::new();
 static LOG_MESSAGES: Mutex<Vec<String>> = Mutex::new(Vec::new());
 static WINDOW_VISIBLE: AtomicBool = AtomicBool::new(false);
 static SERIAL_PORT_ENABLED: AtomicBool = AtomicBool::new(false);
+static DEBUG_MODE: AtomicBool = AtomicBool::new(false);
 
 static SERIAL_PORT: Mutex<Option<Box<dyn serialport::SerialPort>>> = Mutex::new(None);
 
@@ -397,6 +398,13 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
         .unwrap_or(false);
     SERIAL_PORT_ENABLED.store(serial_enabled, Relaxed);
 
+    let debug_mode = config
+        .getbool("omsi2komsi", "debug")
+        .ok()
+        .flatten()
+        .unwrap_or(false);
+    DEBUG_MODE.store(debug_mode, Relaxed);
+
     let engineonvalue = config
         .getint("omsi2komsi", "engineonvalue")
         .ok()
@@ -540,7 +548,7 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
             let newstate = get_vehicle_state_from_omsi(engineonvalue);
 
             let verbose = WINDOW_VISIBLE.load(Relaxed);
-
+            let debug = DEBUG_MODE.load(Relaxed);
             // compare and create cmd buf
             let logger = if verbose {
                 Some(&GuiLogger as &dyn VehicleLogger)
@@ -549,7 +557,8 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
             };
             let cmdbuf = vehicle_state.compare(&newstate, false, logger);
 
-            if verbose && cmdbuf.len() > 0 {
+            // log when debug=true in config section omsi2komsi
+            if verbose && debug && cmdbuf.len() > 0  {
                 // simple log of the command buffer or some representation
                 log_message(format!("Sent {} bytes: {:?}", cmdbuf.len(), cmdbuf));
             }

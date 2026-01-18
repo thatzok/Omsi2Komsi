@@ -23,6 +23,7 @@ bremse_halte
 portname = com22
 baudrate = 115200
 serialportenabled = false
+debug=false
 engineonvalue = 1
 
 [datamappings]
