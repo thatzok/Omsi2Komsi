@@ -22,6 +22,7 @@ bremse_halte
 [omsi2komsi]
 portname = com22
 baudrate = 115200
+serialportenabled = true
 engineonvalue = 1
 
 [datamappings]

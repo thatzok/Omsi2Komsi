@@ -37,6 +37,7 @@ static VAR_NAMES: RwLock<Vec<String>> = RwLock::new(Vec::new());
 static HOTKEY: OnceLock<u32> = OnceLock::new();
 static LOG_MESSAGES: Mutex<Vec<String>> = Mutex::new(Vec::new());
 static WINDOW_VISIBLE: AtomicBool = AtomicBool::new(false);
+static SERIAL_PORT_ENABLED: AtomicBool = AtomicBool::new(false);
 
 static SERIAL_PORT: Mutex<Option<Box<dyn serialport::SerialPort>>> = Mutex::new(None);
 
@@ -386,6 +387,12 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
     let baudrate = config.getint("omsi2komsi", "baudrate").unwrap().unwrap() as u32;
     let portname = config.get("omsi2komsi", "portname").unwrap();
 
+    let serial_enabled = config
+        .getbool("omsi2komsi", "serialportenabled")
+        .unwrap()
+        .unwrap_or(false);
+    SERIAL_PORT_ENABLED.store(serial_enabled, Relaxed);
+
     let engineonvalue = config
         .getint("omsi2komsi", "engineonvalue")
         .unwrap()
@@ -522,6 +529,11 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
     let portname_clone = portname.clone();
     thread::spawn(move || {
         loop {
+            if !SERIAL_PORT_ENABLED.load(Relaxed) {
+                thread::sleep(Duration::from_secs(1));
+                continue;
+            }
+
             // Check if port is open
             let mut port_guard = SERIAL_PORT.lock().unwrap();
             if port_guard.is_none() {
