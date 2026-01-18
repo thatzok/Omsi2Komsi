@@ -174,7 +174,7 @@ pub unsafe extern "stdcall" fn PluginStart(_a_owner: uintptr_t) {
 #[allow(non_snake_case, unused_variables)]
 #[unsafe(export_name = "AccessVariable")]
 pub unsafe extern "stdcall" fn AccessVariable(
-    variableIndex: u8,
+    variableIndex: u16,
     value: *const c_float,
     writeValue: *const bool,
 ) {
@@ -191,7 +191,7 @@ pub unsafe extern "stdcall" fn AccessVariable(
 #[allow(non_snake_case, unused_variables)]
 #[unsafe(export_name = "AccessStringVariable")]
 pub unsafe extern "stdcall" fn AccessStringVariable(
-    variableIndex: u8,
+    variableIndex: u16,
     firstCharacterAddress: *const c_char,
     writeValue: *const bool,
 ) {
@@ -200,7 +200,7 @@ pub unsafe extern "stdcall" fn AccessStringVariable(
 #[allow(non_snake_case, unused_variables)]
 #[unsafe(export_name = "AccessSystemVariable")]
 pub unsafe extern "stdcall" fn AccessSystemVariable(
-    variableIndex: u8,
+    variableIndex: u16,
     value: *const c_float,
     writeValue: *const bool,
 ) {
@@ -216,7 +216,7 @@ pub unsafe extern "stdcall" fn AccessSystemVariable(
 
 #[allow(non_snake_case, unused_variables)]
 #[unsafe(export_name = "AccessTrigger")]
-pub unsafe extern "stdcall" fn AccessTrigger(variableIndex: u8, triggerScript: *const bool) {}
+pub unsafe extern "stdcall" fn AccessTrigger(variableIndex: u16, triggerScript: *const bool) {}
 
 #[allow(non_snake_case)]
 #[unsafe(export_name = "PluginFinalize")]
