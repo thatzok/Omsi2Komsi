@@ -536,41 +536,6 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
     let portname_clone = portname.clone();
     thread::spawn(move || {
         loop {
-            if !SERIAL_PORT_ENABLED.load(Relaxed) {
-                thread::sleep(Duration::from_secs(1));
-                continue;
-            }
-
-            // Check if port is open
-            let mut port_guard = SERIAL_PORT.lock().unwrap();
-            if port_guard.is_none() {
-                match serialport::new(&portname_clone, baudrate)
-                    .timeout(Duration::from_millis(10))
-                    .open()
-                {
-                    Ok(mut p) => {
-                        log_message(format!("Serial port {} opened successfully", portname_clone));
-                        // send SimulatorType:OMSI
-                        let string = "O0\x0a";
-                        if let Err(e) = p.write_all(string.as_bytes()) {
-                            log_message(format!("Failed to send init string: {}", e));
-                        }
-                        *port_guard = Some(p);
-                    }
-                    Err(e) => {
-                        // Log error only occasionally to avoid spamming? 
-                        // Or just log it, it will be visible in the GUI
-                        log_message(format!("Failed to open serial port {}: {}", portname_clone, e));
-                    }
-                }
-            }
-            drop(port_guard);
-
-            if SERIAL_PORT.lock().unwrap().is_none() {
-                thread::sleep(Duration::from_secs(5));
-                continue;
-            }
-
             // get data from OMSI
             let newstate = get_vehicle_state_from_omsi(engineonvalue);
 
@@ -592,9 +557,29 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
             // replace after compare for next round
             vehicle_state = newstate;
 
-            if cmdbuf.len() > 0 {
-                // Write to serial port
+            if cmdbuf.len() > 0 && SERIAL_PORT_ENABLED.load(Relaxed) {
+                // Check if port is open
                 let mut port_guard = SERIAL_PORT.lock().unwrap();
+                if port_guard.is_none() {
+                    match serialport::new(&portname_clone, baudrate)
+                        .timeout(Duration::from_millis(10))
+                        .open()
+                        {
+                            Ok(mut p) => {
+                                log_message(format!("Serial port {} opened successfully", portname_clone));
+                                // send SimulatorType:OMSI
+                                let string = "O0\x0a";
+                                if let Err(e) = p.write_all(string.as_bytes()) {
+                                    log_message(format!("Failed to send init string: {}", e));
+                                }
+                                *port_guard = Some(p);
+                            }
+                            Err(e) => {
+                                log_message(format!("Failed to open serial port {}: {}", portname_clone, e));
+                            }
+                        }
+                }
+
                 if let Some(ref mut p) = *port_guard {
                     if let Err(e) = p.write_all(&cmdbuf) {
                         log_message(format!("Serial write error: {}. Closing port.", e));
