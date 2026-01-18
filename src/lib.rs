@@ -15,8 +15,6 @@ use std::time::Duration;
 
 use atomic_float::AtomicF32;
 
-use crate::vehicle::compare_vehicle_states;
-use crate::vehicle::init_vehicle_state;
 use crate::vehicle::VehicleState;
 
 #[allow(non_camel_case_types)]
@@ -112,7 +110,7 @@ static DATA_MAPPING: [AtomicUsize; SHARED_ARRAY_SIZE] =
     [const { AtomicUsize::new(OmsiDataField::None as usize) }; SHARED_ARRAY_SIZE];
 
 pub fn get_vehicle_state_from_omsi(engineonvalue: u8) -> VehicleState {
-    let mut s = init_vehicle_state();
+    let mut s = VehicleState::new();
 
     s.ignition = OMSI_DATA.ignition.load(Relaxed) as u8;
 
@@ -290,7 +288,7 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
         .open()
         .expect("Failed to open serial port");
 
-    let mut vehicle_state = init_vehicle_state();
+    let mut vehicle_state = VehicleState::new();
 
     // send SimulatorType:OMSI
     let string = "O0\x0a";
@@ -303,7 +301,7 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
             let newstate = get_vehicle_state_from_omsi(engineonvalue);
 
             // compare and create cmd buf
-            let cmdbuf = compare_vehicle_states(&vehicle_state, &newstate, false);
+            let cmdbuf = vehicle_state.compare(&newstate, false);
 
             // replace after compare for next round
             vehicle_state = newstate;
