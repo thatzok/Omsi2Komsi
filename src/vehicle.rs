@@ -1,7 +1,7 @@
-use crate::komsi::KomsiCommandKind;
 use crate::komsi::build_komsi_command;
-use crate::komsi::build_komsi_command_u8;
 use crate::komsi::build_komsi_command_eol;
+use crate::komsi::build_komsi_command_u8;
+use crate::komsi::KomsiCommandKind;
 
 pub trait VehicleLogger {
     fn log(&self, msg: String);
@@ -26,6 +26,7 @@ pub struct VehicleState {
     pub lights_stop_brake: u8,
     pub lights_high_beam: u8,
     pub battery_light: u8,
+    pub door_enable: u8,
 }
 
 impl Default for VehicleState {
@@ -48,6 +49,7 @@ impl Default for VehicleState {
             fuel: 0,
             lights_stop_brake: 0,
             battery_light: 0,
+            door_enable: 0,
         }
     }
 }
@@ -75,10 +77,16 @@ impl VehicleState {
         print!("speed:{} ", self.speed);
         print!("maxspeed:{} ", self.maxspeed);
         print!("batterylight:{} ", self.battery_light);
+        print!("doorenable:{} ", self.door_enable);
         println!(" ");
     }
 
-    pub fn compare(&self, new: &VehicleState, force: bool, logger: Option<&dyn VehicleLogger>) -> Vec<u8> {
+    pub fn compare(
+        &self,
+        new: &VehicleState,
+        force: bool,
+        logger: Option<&dyn VehicleLogger>,
+    ) -> Vec<u8> {
         let mut buffer: Vec<u8> = vec![0; 0];
 
         if (self.ignition != new.ignition) || force {
@@ -118,7 +126,10 @@ impl VehicleState {
 
         if (self.indicator != new.indicator) || force {
             if let Some(l) = logger {
-                l.log(format!("indicator: {} -> {} ", self.indicator, new.indicator));
+                l.log(format!(
+                    "indicator: {} -> {} ",
+                    self.indicator, new.indicator
+                ));
             }
             let mut b = build_komsi_command_u8(KomsiCommandKind::Indicator, new.indicator);
             buffer.append(&mut b);
@@ -137,7 +148,10 @@ impl VehicleState {
 
         if (self.lights_main != new.lights_main) || force {
             if let Some(l) = logger {
-                l.log(format!("lights_main: {} -> {} ", self.lights_main, new.lights_main));
+                l.log(format!(
+                    "lights_main: {} -> {} ",
+                    self.lights_main, new.lights_main
+                ));
             }
             let mut b = build_komsi_command_u8(KomsiCommandKind::LightsMain, new.lights_main);
             buffer.append(&mut b);
@@ -244,12 +258,23 @@ impl VehicleState {
         if (self.battery_light != new.battery_light) || force {
             if let Some(l) = logger {
                 l.log(format!(
-                    "batterylight:  {} -> {} ",
+                    "battery_light:  {} -> {} ",
                     self.battery_light, new.battery_light
                 ));
             }
             let mut b = build_komsi_command_u8(KomsiCommandKind::BatteryLight, new.battery_light);
             buffer.append(&mut b);
+        }
+
+        if (self.door_enable != new.door_enable) || force {
+            if let Some(l) = logger {
+                l.log(format!(
+                    "door_enable:  {} -> {} ",
+                    self.door_enable, new.door_enable
+                ));
+            }
+            // TODO build_komsi_command_u8(KomsiCommandKind::DoorEnable, new.door_enable);
+
         }
 
         // zeilenende hinzu, wenn buffer nicht leer

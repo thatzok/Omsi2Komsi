@@ -10,13 +10,13 @@ use core::sync::atomic::Ordering::Relaxed;
 use libc::c_char;
 use libc::c_float;
 use std::sync::atomic::{AtomicBool, AtomicUsize};
-use std::sync::{OnceLock, Mutex};
+use std::sync::{Mutex, OnceLock};
 use std::thread;
 use std::time::Duration;
 
 use atomic_float::AtomicF32;
 
-use crate::vehicle::{VehicleState, VehicleLogger};
+use crate::vehicle::{VehicleLogger, VehicleState};
 
 #[allow(non_camel_case_types)]
 pub type uintptr_t = usize;
@@ -40,7 +40,9 @@ static WINDOW_VISIBLE: AtomicBool = AtomicBool::new(false);
 
 #[unsafe(no_mangle)]
 pub extern "C" fn log_message_extern(msg: *const c_char) {
-    if msg.is_null() { return; }
+    if msg.is_null() {
+        return;
+    }
     unsafe {
         let c_str = std::ffi::CStr::from_ptr(msg);
         if let Ok(s) = c_str.to_str() {
@@ -74,6 +76,7 @@ struct OmsiData {
     fuel: AtomicF32,
     stop_brake: AtomicF32,
     door_loop: AtomicF32,
+    door_enable: AtomicF32,
 }
 
 static OMSI_DATA: OmsiData = OmsiData {
@@ -92,6 +95,7 @@ static OMSI_DATA: OmsiData = OmsiData {
     fuel: AtomicF32::new(0.0),
     stop_brake: AtomicF32::new(0.0),
     door_loop: AtomicF32::new(0.0),
+    door_enable: AtomicF32::new(0.0),
 };
 
 #[repr(usize)]
@@ -113,6 +117,7 @@ enum OmsiDataField {
     Fuel,
     StopBrake,
     DoorLoop,
+    DoorEnable,
 }
 
 impl From<usize> for OmsiDataField {
@@ -143,10 +148,8 @@ static DATA_MAPPING: [AtomicUsize; SHARED_ARRAY_SIZE] =
 
 fn run_gui() {
     use windows::{
-        core::*,
-        Win32::Graphics::Gdi::*,
-        Win32::UI::WindowsAndMessaging::*,
-        Win32::System::LibraryLoader::*,
+        core::*, Win32::Graphics::Gdi::*,
+        Win32::System::LibraryLoader::*, Win32::UI::WindowsAndMessaging::*,
     };
 
     unsafe {
@@ -169,12 +172,16 @@ fn run_gui() {
             window_class,
             w!("Omsi2Komsi Log"),
             WS_POPUP | WS_BORDER,
-            10, 10, 600, 400,
+            10,
+            10,
+            600,
+            400,
             None,
             None,
             Some(instance.into()),
             None,
-        ).expect("Failed to create window");
+        )
+        .expect("Failed to create window");
 
         let mut msg = MSG::default();
         loop {
@@ -202,12 +209,13 @@ fn run_gui() {
     }
 }
 
-extern "system" fn wndproc(window: windows::Win32::Foundation::HWND, message: u32, wparam: windows::Win32::Foundation::WPARAM, lparam: windows::Win32::Foundation::LPARAM) -> windows::Win32::Foundation::LRESULT {
-    use windows::Win32::{
-        Foundation::*,
-        Graphics::Gdi::*,
-        UI::WindowsAndMessaging::*,
-    };
+extern "system" fn wndproc(
+    window: windows::Win32::Foundation::HWND,
+    message: u32,
+    wparam: windows::Win32::Foundation::WPARAM,
+    lparam: windows::Win32::Foundation::LPARAM,
+) -> windows::Win32::Foundation::LRESULT {
+    use windows::Win32::{Foundation::*, Graphics::Gdi::*, UI::WindowsAndMessaging::*};
 
     unsafe {
         match message {
@@ -217,13 +225,14 @@ extern "system" fn wndproc(window: windows::Win32::Foundation::HWND, message: u3
             WM_PAINT => {
                 let mut ps = PAINTSTRUCT::default();
                 let hdc = BeginPaint(window, &mut ps);
-                
+
                 let mut rect = RECT::default();
                 let _ = GetClientRect(window, &mut rect);
 
                 // Double Buffering
                 let mem_hdc = CreateCompatibleDC(Some(hdc));
-                let mem_bitmap = CreateCompatibleBitmap(hdc, rect.right - rect.left, rect.bottom - rect.top);
+                let mem_bitmap =
+                    CreateCompatibleBitmap(hdc, rect.right - rect.left, rect.bottom - rect.top);
                 let old_bitmap = SelectObject(mem_hdc, HGDIOBJ(mem_bitmap.0));
 
                 let hbr = CreateSolidBrush(COLORREF(0x000000)); // Black background
@@ -242,14 +251,27 @@ extern "system" fn wndproc(window: windows::Win32::Foundation::HWND, message: u3
                             right: rect.right - 5,
                             bottom: y + 20,
                         };
-                        let mut wide_msg: Vec<u16> = msg.encode_utf16().chain(std::iter::once(0)).collect();
+                        let mut wide_msg: Vec<u16> =
+                            msg.encode_utf16().chain(std::iter::once(0)).collect();
                         DrawTextW(mem_hdc, &mut wide_msg, &mut r, DT_LEFT | DT_SINGLELINE);
                         y -= 20;
-                        if y < 0 { break; }
+                        if y < 0 {
+                            break;
+                        }
                     }
                 }
 
-                let _ = BitBlt(hdc, 0, 0, rect.right - rect.left, rect.bottom - rect.top, Some(mem_hdc), 0, 0, SRCCOPY);
+                let _ = BitBlt(
+                    hdc,
+                    0,
+                    0,
+                    rect.right - rect.left,
+                    rect.bottom - rect.top,
+                    Some(mem_hdc),
+                    0,
+                    0,
+                    SRCCOPY,
+                );
                 let _ = SelectObject(mem_hdc, old_bitmap);
                 let _ = DeleteObject(HGDIOBJ(mem_bitmap.0));
                 let _ = DeleteDC(mem_hdc);
@@ -289,9 +311,11 @@ pub fn get_vehicle_state_from_omsi(engineonvalue: u8) -> VehicleState {
     s.lights_second_door = OMSI_DATA.second_door.load(Relaxed) as u8;
     s.lights_third_door = OMSI_DATA.third_door.load(Relaxed) as u8;
 
+    s.door_enable = OMSI_DATA.door_enable.load(Relaxed) as u8;
+
     // Türschleife erst setzen und dann errechnen
     s.doors = OMSI_DATA.door_loop.load(Relaxed) as u8;
-    if s.lights_front_door + s.lights_second_door + s.lights_third_door > 0 {
+    if s.lights_front_door + s.lights_second_door + s.lights_third_door + s.door_enable > 0 {
         s.doors = 1;
     }
 
@@ -313,7 +337,8 @@ pub fn get_vehicle_state_from_omsi(engineonvalue: u8) -> VehicleState {
 
     let aisum = ail_val + air_val;
 
-    if aisum == 1 {   // left OR right
+    if aisum == 1 {
+        // left OR right
         // Blinker
         if ail_val == 1 {
             s.indicator = 1
@@ -322,14 +347,14 @@ pub fn get_vehicle_state_from_omsi(engineonvalue: u8) -> VehicleState {
         }
     }
 
-    if aisum > 1 {    // left AND right means warning lights
+    if aisum > 1 {
+        // left AND right means warning lights
         s.lights_warning = 1;
     }
 
     // fuel is in percent, so we multiply by 100
     let f = OMSI_DATA.fuel.load(Relaxed);
     s.fuel = (f.abs() * 100.0).round() as u32;
-
 
     s.lights_stop_brake = OMSI_DATA.stop_brake.load(Relaxed) as u8;
 
@@ -474,7 +499,8 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
         let mut pressed = false;
         loop {
             unsafe {
-                let state = windows::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState(hotkey as i32);
+                let state =
+                    windows::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState(hotkey as i32);
                 if (state as u16 & 0x8000) != 0 {
                     if !pressed {
                         let current = WINDOW_VISIBLE.load(Relaxed);
@@ -508,7 +534,11 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
             let verbose = WINDOW_VISIBLE.load(Relaxed);
 
             // compare and create cmd buf
-            let logger = if verbose { Some(&GuiLogger as &dyn VehicleLogger) } else { None };
+            let logger = if verbose {
+                Some(&GuiLogger as &dyn VehicleLogger)
+            } else {
+                None
+            };
             let cmdbuf = vehicle_state.compare(&newstate, false, logger);
 
             if verbose && cmdbuf.len() > 0 {
@@ -589,6 +619,7 @@ pub unsafe extern "stdcall" fn AccessVariable(
         OmsiDataField::Fuel => OMSI_DATA.fuel.store(val_to_store, Relaxed),
         OmsiDataField::StopBrake => OMSI_DATA.stop_brake.store(val_to_store, Relaxed),
         OmsiDataField::DoorLoop => OMSI_DATA.door_loop.store(val_to_store, Relaxed),
+        OmsiDataField::DoorEnable => OMSI_DATA.door_enable.store(val_to_store, Relaxed),
         OmsiDataField::None => {}
     }
 }

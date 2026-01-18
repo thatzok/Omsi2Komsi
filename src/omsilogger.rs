@@ -1,15 +1,15 @@
 #[cfg(not(target_arch = "x86"))]
 compile_error!("This plugin must be compiled for x86 (32-bit) to be compatible with OMSI!");
 
-use std::thread;
-use std::time::Duration;
-use std::sync::atomic::{AtomicU32, AtomicBool, Ordering::Relaxed};
+use libc::{c_char, c_float};
+use std::fs::File;
 use std::fs::OpenOptions;
 use std::io::Write;
-use std::fs::File;
 use std::io::{BufRead, BufReader};
-use std::sync::{OnceLock, Mutex};
-use libc::{c_char, c_float};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering::Relaxed};
+use std::sync::{Mutex, OnceLock};
+use std::thread;
+use std::time::Duration;
 
 #[allow(non_camel_case_types)]
 pub type uintptr_t = usize;
@@ -79,7 +79,7 @@ pub unsafe extern "stdcall" fn PluginStart(_a_owner: uintptr_t) {
             }
         }
     }
-    
+
     let _ = VAR_NAMES.set(var_names);
     let _ = HOTKEY.set(hotkey_val);
 
@@ -94,7 +94,8 @@ pub unsafe extern "stdcall" fn PluginStart(_a_owner: uintptr_t) {
         let mut pressed = false;
         loop {
             unsafe {
-                let state = windows::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState(hotkey as i32);
+                let state =
+                    windows::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState(hotkey as i32);
                 if (state as u16 & 0x8000) != 0 {
                     if !pressed {
                         let current = WINDOW_VISIBLE.load(Relaxed);
@@ -128,15 +129,16 @@ pub unsafe extern "stdcall" fn PluginStart(_a_owner: uintptr_t) {
             );
             let _ = file.write_all(start_msg.as_bytes());
         }
-        
+
         loop {
             for i in 0..SHARED_ARRAY_SIZE {
                 let current_val = SHARED_ARRAY[i].load(Relaxed);
                 if current_val != last_values[i] {
-                    let var_name = VAR_NAMES.get()
+                    let var_name = VAR_NAMES
+                        .get()
                         .and_then(|v| v.get(i).cloned())
                         .unwrap_or_else(|| format!("Unknown_{}", i));
-                    
+
                     let now = chrono::Local::now();
                     let log_line = format!(
                         "{}: {}, old: {}, new: {}\n",
@@ -145,11 +147,11 @@ pub unsafe extern "stdcall" fn PluginStart(_a_owner: uintptr_t) {
                         last_values[i],
                         current_val
                     );
-                    
+
                     if let Ok(mut file) = OpenOptions::new()
                         .create(true)
                         .append(true)
-                        .open(&log_file_path) 
+                        .open(&log_file_path)
                     {
                         let _ = file.write_all(log_line.as_bytes());
                     }
@@ -160,7 +162,7 @@ pub unsafe extern "stdcall" fn PluginStart(_a_owner: uintptr_t) {
                             messages.remove(0);
                         }
                     }
-                    
+
                     last_values[i] = current_val;
                 }
             }
@@ -214,23 +216,16 @@ pub unsafe extern "stdcall" fn AccessSystemVariable(
 
 #[allow(non_snake_case, unused_variables)]
 #[unsafe(export_name = "AccessTrigger")]
-pub unsafe extern "stdcall" fn AccessTrigger(
-    variableIndex: u8,
-    triggerScript: *const bool,
-) {
-}
+pub unsafe extern "stdcall" fn AccessTrigger(variableIndex: u8, triggerScript: *const bool) {}
 
 #[allow(non_snake_case)]
 #[unsafe(export_name = "PluginFinalize")]
-pub unsafe extern "stdcall" fn PluginFinalize() {
-}
+pub unsafe extern "stdcall" fn PluginFinalize() {}
 
 fn run_gui() {
     use windows::{
-        core::*,
-        Win32::Graphics::Gdi::*,
-        Win32::UI::WindowsAndMessaging::*,
-        Win32::System::LibraryLoader::*,
+        core::*, Win32::Graphics::Gdi::*,
+        Win32::System::LibraryLoader::*, Win32::UI::WindowsAndMessaging::*,
     };
 
     unsafe {
@@ -253,12 +248,16 @@ fn run_gui() {
             window_class,
             w!("OMSI Logger"),
             WS_POPUP | WS_BORDER,
-            10, 10, 600, 400,
+            10,
+            10,
+            600,
+            400,
             None,
             None,
             Some(instance.into()),
             None,
-        ).expect("Failed to create window");
+        )
+        .expect("Failed to create window");
 
         let mut msg = MSG::default();
         loop {
@@ -286,12 +285,13 @@ fn run_gui() {
     }
 }
 
-extern "system" fn wndproc(window: windows::Win32::Foundation::HWND, message: u32, wparam: windows::Win32::Foundation::WPARAM, lparam: windows::Win32::Foundation::LPARAM) -> windows::Win32::Foundation::LRESULT {
-    use windows::Win32::{
-        Foundation::*,
-        Graphics::Gdi::*,
-        UI::WindowsAndMessaging::*,
-    };
+extern "system" fn wndproc(
+    window: windows::Win32::Foundation::HWND,
+    message: u32,
+    wparam: windows::Win32::Foundation::WPARAM,
+    lparam: windows::Win32::Foundation::LPARAM,
+) -> windows::Win32::Foundation::LRESULT {
+    use windows::Win32::{Foundation::*, Graphics::Gdi::*, UI::WindowsAndMessaging::*};
 
     unsafe {
         match message {
@@ -301,13 +301,14 @@ extern "system" fn wndproc(window: windows::Win32::Foundation::HWND, message: u3
             WM_PAINT => {
                 let mut ps = PAINTSTRUCT::default();
                 let hdc = BeginPaint(window, &mut ps);
-                
+
                 let mut rect = RECT::default();
                 let _ = GetClientRect(window, &mut rect);
 
                 // Double Buffering
                 let mem_hdc = CreateCompatibleDC(Some(hdc));
-                let mem_bitmap = CreateCompatibleBitmap(hdc, rect.right - rect.left, rect.bottom - rect.top);
+                let mem_bitmap =
+                    CreateCompatibleBitmap(hdc, rect.right - rect.left, rect.bottom - rect.top);
                 let old_bitmap = SelectObject(mem_hdc, HGDIOBJ(mem_bitmap.0));
 
                 let hbr = CreateSolidBrush(COLORREF(0x000000)); // Black background
@@ -326,7 +327,8 @@ extern "system" fn wndproc(window: windows::Win32::Foundation::HWND, message: u3
                             right: rect.right - 5,
                             bottom: y + 20,
                         };
-                        let mut wide_msg: Vec<u16> = msg.encode_utf16().chain(std::iter::once(0)).collect();
+                        let mut wide_msg: Vec<u16> =
+                            msg.encode_utf16().chain(std::iter::once(0)).collect();
                         DrawTextW(mem_hdc, &mut wide_msg, &mut r, DT_LEFT | DT_SINGLELINE);
                         y -= 20;
                         if y < 0 {
@@ -335,8 +337,18 @@ extern "system" fn wndproc(window: windows::Win32::Foundation::HWND, message: u3
                     }
                 }
 
-                let _ = BitBlt(hdc, 0, 0, rect.right - rect.left, rect.bottom - rect.top, Some(mem_hdc), 0, 0, SRCCOPY);
-                
+                let _ = BitBlt(
+                    hdc,
+                    0,
+                    0,
+                    rect.right - rect.left,
+                    rect.bottom - rect.top,
+                    Some(mem_hdc),
+                    0,
+                    0,
+                    SRCCOPY,
+                );
+
                 let _ = SelectObject(mem_hdc, old_bitmap);
                 let _ = DeleteObject(HGDIOBJ(mem_bitmap.0));
                 let _ = DeleteDC(mem_hdc);
