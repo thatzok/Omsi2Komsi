@@ -38,6 +38,8 @@ static HOTKEY: OnceLock<u32> = OnceLock::new();
 static LOG_MESSAGES: Mutex<Vec<String>> = Mutex::new(Vec::new());
 static WINDOW_VISIBLE: AtomicBool = AtomicBool::new(false);
 
+static SERIAL_PORT: Mutex<Option<Box<dyn serialport::SerialPort>>> = Mutex::new(None);
+
 #[unsafe(no_mangle)]
 pub extern "C" fn log_message_extern(msg: *const c_char) {
     if msg.is_null() {
@@ -515,19 +517,41 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
         }
     });
 
-    let mut port = serialport::new(portname, baudrate)
-        .open()
-        .expect("Failed to open serial port");
-
     let mut vehicle_state = VehicleState::new();
 
-    // send SimulatorType:OMSI
-    let string = "O0\x0a";
-    let buffer = string.as_bytes();
-    let _ = port.write(buffer);
-
+    let portname_clone = portname.clone();
     thread::spawn(move || {
         loop {
+            // Check if port is open
+            let mut port_guard = SERIAL_PORT.lock().unwrap();
+            if port_guard.is_none() {
+                match serialport::new(&portname_clone, baudrate)
+                    .timeout(Duration::from_millis(10))
+                    .open()
+                {
+                    Ok(mut p) => {
+                        log_message(format!("Serial port {} opened successfully", portname_clone));
+                        // send SimulatorType:OMSI
+                        let string = "O0\x0a";
+                        if let Err(e) = p.write_all(string.as_bytes()) {
+                            log_message(format!("Failed to send init string: {}", e));
+                        }
+                        *port_guard = Some(p);
+                    }
+                    Err(e) => {
+                        // Log error only occasionally to avoid spamming? 
+                        // Or just log it, it will be visible in the GUI
+                        log_message(format!("Failed to open serial port {}: {}", portname_clone, e));
+                    }
+                }
+            }
+            drop(port_guard);
+
+            if SERIAL_PORT.lock().unwrap().is_none() {
+                thread::sleep(Duration::from_secs(5));
+                continue;
+            }
+
             // get data from OMSI
             let newstate = get_vehicle_state_from_omsi(engineonvalue);
 
@@ -551,7 +575,13 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
 
             if cmdbuf.len() > 0 {
                 // Write to serial port
-                let _ = port.write(&cmdbuf);
+                let mut port_guard = SERIAL_PORT.lock().unwrap();
+                if let Some(ref mut p) = *port_guard {
+                    if let Err(e) = p.write_all(&cmdbuf) {
+                        log_message(format!("Serial write error: {}. Closing port.", e));
+                        *port_guard = None;
+                    }
+                }
             }
 
             thread::sleep(Duration::from_millis(100));
