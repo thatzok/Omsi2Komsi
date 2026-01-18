@@ -16,10 +16,18 @@ use std::time::Duration;
 
 use atomic_float::AtomicF32;
 
-use crate::vehicle::VehicleState;
+use crate::vehicle::{VehicleState, VehicleLogger};
 
 #[allow(non_camel_case_types)]
 pub type uintptr_t = usize;
+
+struct GuiLogger;
+
+impl VehicleLogger for GuiLogger {
+    fn log(&self, msg: String) {
+        log_message(msg);
+    }
+}
 
 const SHARED_ARRAY_SIZE: usize = 30;
 
@@ -500,7 +508,8 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
             let verbose = WINDOW_VISIBLE.load(Relaxed);
 
             // compare and create cmd buf
-            let cmdbuf = vehicle_state.compare(&newstate, false, verbose);
+            let logger = if verbose { Some(&GuiLogger as &dyn VehicleLogger) } else { None };
+            let cmdbuf = vehicle_state.compare(&newstate, false, logger);
 
             if verbose && cmdbuf.len() > 0 {
                 // simple log of the command buffer or some representation
