@@ -42,7 +42,6 @@ pub fn print_vehicle_state(v: &VehicleState) {
     print!("speed:{} ", v.speed);
     print!("maxspeed:{} ", v.maxspeed);
     print!("batterylight:{} ", v.battery_light);
-
     println!(" ");
 }
 
@@ -66,7 +65,7 @@ pub fn init_vehicle_state() -> VehicleState {
         lights_stop_brake: 0,
         battery_light: 0,
     };
-    return s;
+    s
 }
 
 pub fn compare_vehicle_states(
@@ -268,5 +267,5 @@ pub fn compare_vehicle_states(
         buffer.append(&mut b);
     }
 
-    return buffer;
+    buffer
 }

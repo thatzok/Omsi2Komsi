@@ -23,3 +23,20 @@ bremse_halte
 portname = com22
 baudrate = 115200
 engineonvalue = 1
+
+[datamappings]
+Ignition=elec_busbar_main
+Battery=cockpit_light_batterie
+Speed=velocity
+FrontDoor=door_light_1
+SecondDoor=door_light_2
+ThirdDoor=door_light_3
+StopRequest=haltewunsch
+LightMain=ai_light
+LightsHighBeam=lights_fern
+FixingBrake=cockpit_light_feststellbremse
+IndicatorLeft=ai_blinker_l
+IndicatorRight=ai_blinker_r
+Fuel=tank_percent
+StopBrake=bremse_halte
+
