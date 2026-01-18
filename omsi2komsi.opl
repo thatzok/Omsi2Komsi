@@ -40,3 +40,6 @@ IndicatorRight=ai_blinker_r
 Fuel=tank_percent
 StopBrake=bremse_halte
 
+[hotkey]
+0x79
+

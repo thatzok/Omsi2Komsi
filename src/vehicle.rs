@@ -2,6 +2,18 @@ use crate::komsi::KomsiCommandKind;
 use crate::komsi::build_komsi_command;
 use crate::komsi::build_komsi_command_u8;
 use crate::komsi::build_komsi_command_eol;
+use libc::c_char;
+
+unsafe extern "C" {
+    fn log_message_extern(msg: *const c_char);
+}
+
+fn log_to_gui(msg: String) {
+    let c_msg = std::ffi::CString::new(msg).unwrap();
+    unsafe {
+        log_message_extern(c_msg.as_ptr());
+    }
+}
 
 #[derive(Debug)]
 pub struct VehicleState {
@@ -74,13 +86,12 @@ impl VehicleState {
         println!(" ");
     }
 
-    pub fn compare(&self, new: &VehicleState, force: bool) -> Vec<u8> {
-        let verbose = false;
+    pub fn compare(&self, new: &VehicleState, force: bool, verbose: bool) -> Vec<u8> {
         let mut buffer: Vec<u8> = vec![0; 0];
 
         if (self.ignition != new.ignition) || force {
             if verbose {
-                println!("ignition: {} -> {} ", self.ignition, new.ignition);
+                log_to_gui(format!("ignition: {} -> {} ", self.ignition, new.ignition));
             }
             let mut b = build_komsi_command_u8(KomsiCommandKind::Ignition, new.ignition);
             buffer.append(&mut b);
@@ -88,7 +99,7 @@ impl VehicleState {
 
         if (self.engine != new.engine) || force {
             if verbose {
-                println!("engine: {} -> {} ", self.engine, new.engine);
+                log_to_gui(format!("engine: {} -> {} ", self.engine, new.engine));
             }
             let mut b = build_komsi_command_u8(KomsiCommandKind::Engine, new.engine);
             buffer.append(&mut b);
@@ -96,7 +107,7 @@ impl VehicleState {
 
         if (self.doors != new.doors) || force {
             if verbose {
-                println!("doors: {} -> {} ", self.doors, new.doors);
+                log_to_gui(format!("doors: {} -> {} ", self.doors, new.doors));
             }
             let mut b = build_komsi_command_u8(KomsiCommandKind::PassengerDoorsOpen, new.doors);
             buffer.append(&mut b);
@@ -104,10 +115,10 @@ impl VehicleState {
 
         if (self.fixing_brake != new.fixing_brake) || force {
             if verbose {
-                println!(
+                log_to_gui(format!(
                     "fixing_brake: {} -> {} ",
                     self.fixing_brake, new.fixing_brake
-                );
+                ));
             }
             let mut b = build_komsi_command_u8(KomsiCommandKind::FixingBrake, new.fixing_brake);
             buffer.append(&mut b);
@@ -115,7 +126,7 @@ impl VehicleState {
 
         if (self.indicator != new.indicator) || force {
             if verbose {
-                println!("indicator: {} -> {} ", self.indicator, new.indicator);
+                log_to_gui(format!("indicator: {} -> {} ", self.indicator, new.indicator));
             }
             let mut b = build_komsi_command_u8(KomsiCommandKind::Indicator, new.indicator);
             buffer.append(&mut b);
@@ -123,10 +134,10 @@ impl VehicleState {
 
         if (self.lights_warning != new.lights_warning) || force {
             if verbose {
-                println!(
+                log_to_gui(format!(
                     "lights_warning: {} -> {} ",
                     self.lights_warning, new.lights_warning
-                );
+                ));
             }
             let mut b = build_komsi_command_u8(KomsiCommandKind::LightsWarning, new.lights_warning);
             buffer.append(&mut b);
@@ -134,7 +145,7 @@ impl VehicleState {
 
         if (self.lights_main != new.lights_main) || force {
             if verbose {
-                println!("lights_main: {} -> {} ", self.lights_main, new.lights_main);
+                log_to_gui(format!("lights_main: {} -> {} ", self.lights_main, new.lights_main));
             }
             let mut b = build_komsi_command_u8(KomsiCommandKind::LightsMain, new.lights_main);
             buffer.append(&mut b);
@@ -142,10 +153,10 @@ impl VehicleState {
 
         if (self.lights_stop_request != new.lights_stop_request) || force {
             if verbose {
-                println!(
+                log_to_gui(format!(
                     "lights_stop_request: {} -> {} ",
                     self.lights_stop_request, new.lights_stop_request
-                );
+                ));
             }
             let mut b = build_komsi_command_u8(
                 KomsiCommandKind::LightsStopRequest,
@@ -156,10 +167,10 @@ impl VehicleState {
 
         if (self.lights_stop_brake != new.lights_stop_brake) || force {
             if verbose {
-                println!(
+                log_to_gui(format!(
                     "lights_stop_brake: {} -> {} ",
                     self.lights_stop_brake, new.lights_stop_brake
-                );
+                ));
             }
             let mut b =
                 build_komsi_command_u8(KomsiCommandKind::LightsStopBrake, new.lights_stop_brake);
@@ -168,10 +179,10 @@ impl VehicleState {
 
         if (self.lights_front_door != new.lights_front_door) || force {
             if verbose {
-                println!(
+                log_to_gui(format!(
                     "lights_front_door: {} -> {} ",
                     self.lights_front_door, new.lights_front_door
-                );
+                ));
             }
             let mut b =
                 build_komsi_command_u8(KomsiCommandKind::LightsFrontDoor, new.lights_front_door);
@@ -180,10 +191,10 @@ impl VehicleState {
 
         if (self.lights_second_door != new.lights_second_door) || force {
             if verbose {
-                println!(
+                log_to_gui(format!(
                     "lights_second_door: {} -> {} ",
                     self.lights_second_door, new.lights_second_door
-                );
+                ));
             }
             let mut b =
                 build_komsi_command_u8(KomsiCommandKind::LightsSecondDoor, new.lights_second_door);
@@ -192,10 +203,10 @@ impl VehicleState {
 
         if (self.lights_third_door != new.lights_third_door) || force {
             if verbose {
-                println!(
+                log_to_gui(format!(
                     "lights_third_door: {} -> {} ",
                     self.lights_third_door, new.lights_third_door
-                );
+                ));
             }
             let mut b =
                 build_komsi_command_u8(KomsiCommandKind::LightsThirdDoor, new.lights_third_door);
@@ -204,10 +215,10 @@ impl VehicleState {
 
         if (self.lights_high_beam != new.lights_high_beam) || force {
             if verbose {
-                println!(
+                log_to_gui(format!(
                     "lights_high_beam: {} -> {} ",
                     self.lights_high_beam, new.lights_high_beam
-                );
+                ));
             }
             let mut b =
                 build_komsi_command_u8(KomsiCommandKind::LightsHighBeam, new.lights_high_beam);
@@ -216,7 +227,7 @@ impl VehicleState {
 
         if (self.fuel != new.fuel) || force {
             if verbose {
-                println!("fuel:  {} -> {} ", self.fuel, new.fuel);
+                log_to_gui(format!("fuel:  {} -> {} ", self.fuel, new.fuel));
             }
             let mut b = build_komsi_command(KomsiCommandKind::Fuel, new.fuel);
             buffer.append(&mut b);
@@ -224,7 +235,7 @@ impl VehicleState {
 
         if (self.speed != new.speed) || force {
             if verbose {
-                println!("speed:  {} -> {} ", self.speed, new.speed);
+                log_to_gui(format!("speed:  {} -> {} ", self.speed, new.speed));
             }
             let mut b = build_komsi_command(KomsiCommandKind::Speed, new.speed);
             buffer.append(&mut b);
@@ -232,7 +243,7 @@ impl VehicleState {
 
         if (self.maxspeed != new.maxspeed) || force {
             if verbose {
-                println!("maxspeed:  {} -> {} ", self.maxspeed, new.maxspeed);
+                log_to_gui(format!("maxspeed:  {} -> {} ", self.maxspeed, new.maxspeed));
             }
             let mut b = build_komsi_command(KomsiCommandKind::MaxSpeed, new.maxspeed);
             buffer.append(&mut b);
@@ -240,10 +251,10 @@ impl VehicleState {
 
         if (self.battery_light != new.battery_light) || force {
             if verbose {
-                println!(
+                log_to_gui(format!(
                     "batterylight:  {} -> {} ",
                     self.battery_light, new.battery_light
-                );
+                ));
             }
             let mut b = build_komsi_command_u8(KomsiCommandKind::BatteryLight, new.battery_light);
             buffer.append(&mut b);

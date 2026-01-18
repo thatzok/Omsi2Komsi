@@ -9,7 +9,8 @@ use configparser::ini::Ini;
 use core::sync::atomic::Ordering::Relaxed;
 use libc::c_char;
 use libc::c_float;
-use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::{AtomicBool, AtomicUsize};
+use std::sync::{OnceLock, Mutex};
 use std::thread;
 use std::time::Duration;
 
@@ -25,6 +26,29 @@ const SHARED_ARRAY_SIZE: usize = 30;
 use std::sync::RwLock;
 
 static VAR_NAMES: RwLock<Vec<String>> = RwLock::new(Vec::new());
+static HOTKEY: OnceLock<u32> = OnceLock::new();
+static LOG_MESSAGES: Mutex<Vec<String>> = Mutex::new(Vec::new());
+static WINDOW_VISIBLE: AtomicBool = AtomicBool::new(false);
+
+#[unsafe(no_mangle)]
+pub extern "C" fn log_message_extern(msg: *const c_char) {
+    if msg.is_null() { return; }
+    unsafe {
+        let c_str = std::ffi::CStr::from_ptr(msg);
+        if let Ok(s) = c_str.to_str() {
+            log_message(s.to_string());
+        }
+    }
+}
+
+fn log_message(msg: String) {
+    if let Ok(mut messages) = LOG_MESSAGES.lock() {
+        messages.push(msg);
+        if messages.len() > 20 {
+            messages.remove(0);
+        }
+    }
+}
 
 struct OmsiData {
     ignition: AtomicF32,
@@ -108,6 +132,131 @@ impl From<usize> for OmsiDataField {
 
 static DATA_MAPPING: [AtomicUsize; SHARED_ARRAY_SIZE] =
     [const { AtomicUsize::new(OmsiDataField::None as usize) }; SHARED_ARRAY_SIZE];
+
+fn run_gui() {
+    use windows::{
+        core::*,
+        Win32::Graphics::Gdi::*,
+        Win32::UI::WindowsAndMessaging::*,
+        Win32::System::LibraryLoader::*,
+    };
+
+    unsafe {
+        let instance = GetModuleHandleW(None).unwrap();
+        let window_class = w!("Omsi2KomsiLogWindow");
+
+        let wc = WNDCLASSW {
+            hCursor: LoadCursorW(None, IDC_ARROW).unwrap(),
+            hInstance: instance.into(),
+            lpszClassName: window_class,
+            style: CS_HREDRAW | CS_VREDRAW,
+            lpfnWndProc: Some(wndproc),
+            ..Default::default()
+        };
+
+        RegisterClassW(&wc);
+
+        let hwnd = CreateWindowExW(
+            WS_EX_TOPMOST,
+            window_class,
+            w!("Omsi2Komsi Log"),
+            WS_POPUP | WS_BORDER,
+            10, 10, 600, 400,
+            None,
+            None,
+            Some(instance.into()),
+            None,
+        ).expect("Failed to create window");
+
+        let mut msg = MSG::default();
+        loop {
+            while PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).as_bool() {
+                let _ = TranslateMessage(&msg);
+                DispatchMessageW(&msg);
+            }
+
+            let is_visible = WINDOW_VISIBLE.load(Relaxed);
+            let current_visible = IsWindowVisible(hwnd).as_bool();
+
+            if is_visible && !current_visible {
+                let _ = ShowWindow(hwnd, SW_SHOW);
+                let _ = SetForegroundWindow(hwnd);
+            } else if !is_visible && current_visible {
+                let _ = ShowWindow(hwnd, SW_HIDE);
+            }
+
+            if is_visible {
+                let _ = InvalidateRect(Some(hwnd), None, false);
+            }
+
+            thread::sleep(Duration::from_millis(16));
+        }
+    }
+}
+
+extern "system" fn wndproc(window: windows::Win32::Foundation::HWND, message: u32, wparam: windows::Win32::Foundation::WPARAM, lparam: windows::Win32::Foundation::LPARAM) -> windows::Win32::Foundation::LRESULT {
+    use windows::Win32::{
+        Foundation::*,
+        Graphics::Gdi::*,
+        UI::WindowsAndMessaging::*,
+    };
+
+    unsafe {
+        match message {
+            WM_ERASEBKGND => {
+                LRESULT(1) // Tell Windows we handled it to prevent flickering
+            }
+            WM_PAINT => {
+                let mut ps = PAINTSTRUCT::default();
+                let hdc = BeginPaint(window, &mut ps);
+                
+                let mut rect = RECT::default();
+                let _ = GetClientRect(window, &mut rect);
+
+                // Double Buffering
+                let mem_hdc = CreateCompatibleDC(Some(hdc));
+                let mem_bitmap = CreateCompatibleBitmap(hdc, rect.right - rect.left, rect.bottom - rect.top);
+                let old_bitmap = SelectObject(mem_hdc, HGDIOBJ(mem_bitmap.0));
+
+                let hbr = CreateSolidBrush(COLORREF(0x000000)); // Black background
+                FillRect(mem_hdc, &rect, hbr);
+                let _ = DeleteObject(HGDIOBJ(hbr.0));
+
+                SetTextColor(mem_hdc, COLORREF(0x00FF00)); // Green text
+                SetBkMode(mem_hdc, TRANSPARENT);
+
+                if let Ok(messages) = LOG_MESSAGES.lock() {
+                    let mut y = rect.bottom - 25;
+                    for msg in messages.iter().rev() {
+                        let mut r = RECT {
+                            left: 5,
+                            top: y,
+                            right: rect.right - 5,
+                            bottom: y + 20,
+                        };
+                        let mut wide_msg: Vec<u16> = msg.encode_utf16().chain(std::iter::once(0)).collect();
+                        DrawTextW(mem_hdc, &mut wide_msg, &mut r, DT_LEFT | DT_SINGLELINE);
+                        y -= 20;
+                        if y < 0 { break; }
+                    }
+                }
+
+                let _ = BitBlt(hdc, 0, 0, rect.right - rect.left, rect.bottom - rect.top, Some(mem_hdc), 0, 0, SRCCOPY);
+                let _ = SelectObject(mem_hdc, old_bitmap);
+                let _ = DeleteObject(HGDIOBJ(mem_bitmap.0));
+                let _ = DeleteDC(mem_hdc);
+
+                let _ = EndPaint(window, &ps);
+                LRESULT(0)
+            }
+            WM_DESTROY => {
+                PostQuitMessage(0);
+                LRESULT(0)
+            }
+            _ => DefWindowProcW(window, message, wparam, lparam),
+        }
+    }
+}
 
 pub fn get_vehicle_state_from_omsi(engineonvalue: u8) -> VehicleState {
     let mut s = VehicleState::new();
@@ -210,6 +359,8 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
     if let Ok(content) = std::fs::read_to_string(".\\plugins\\omsi2komsi.opl") {
         let mut in_varlist = false;
         let mut in_datamappings = false;
+        let mut in_hotkey = false;
+        let mut hotkey_val = 0x79; // Default F10
         let mut var_map: std::collections::HashMap<String, usize> =
             std::collections::HashMap::new();
         let mut temp_var_names: Vec<String> = Vec::new();
@@ -222,16 +373,25 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
             if line == "[varlist]" {
                 in_varlist = true;
                 in_datamappings = false;
+                in_hotkey = false;
                 continue;
             }
             if line == "[datamappings]" {
                 in_varlist = false;
                 in_datamappings = true;
+                in_hotkey = false;
+                continue;
+            }
+            if line == "[hotkey]" {
+                in_varlist = false;
+                in_datamappings = false;
+                in_hotkey = true;
                 continue;
             }
             if line.starts_with('[') {
                 in_varlist = false;
                 in_datamappings = false;
+                in_hotkey = false;
                 continue;
             }
 
@@ -244,6 +404,16 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
                 let var_name = line.to_lowercase();
                 var_map.insert(var_name.clone(), temp_var_names.len());
                 temp_var_names.push(var_name);
+            }
+
+            if in_hotkey {
+                if line.starts_with("0x") {
+                    if let Ok(h) = u32::from_str_radix(&line[2..], 16) {
+                        hotkey_val = h;
+                    }
+                } else if let Ok(h) = line.parse::<u32>() {
+                    hotkey_val = h;
+                }
             }
 
             if in_datamappings {
@@ -282,7 +452,34 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
         if let Ok(mut var_names) = VAR_NAMES.write() {
             *var_names = temp_var_names;
         }
+        let _ = HOTKEY.set(hotkey_val);
     }
+
+    // GUI Thread
+    thread::spawn(|| {
+        run_gui();
+    });
+
+    // Hotkey Listener Thread
+    thread::spawn(move || {
+        let hotkey = *HOTKEY.get().unwrap_or(&0x79);
+        let mut pressed = false;
+        loop {
+            unsafe {
+                let state = windows::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState(hotkey as i32);
+                if (state as u16 & 0x8000) != 0 {
+                    if !pressed {
+                        let current = WINDOW_VISIBLE.load(Relaxed);
+                        WINDOW_VISIBLE.store(!current, Relaxed);
+                        pressed = true;
+                    }
+                } else {
+                    pressed = false;
+                }
+            }
+            thread::sleep(Duration::from_millis(50));
+        }
+    });
 
     let mut port = serialport::new(portname, baudrate)
         .open()
@@ -300,8 +497,15 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
             // get data from OMSI
             let newstate = get_vehicle_state_from_omsi(engineonvalue);
 
+            let verbose = WINDOW_VISIBLE.load(Relaxed);
+
             // compare and create cmd buf
-            let cmdbuf = vehicle_state.compare(&newstate, false);
+            let cmdbuf = vehicle_state.compare(&newstate, false, verbose);
+
+            if verbose && cmdbuf.len() > 0 {
+                // simple log of the command buffer or some representation
+                log_message(format!("Sent {} bytes: {:?}", cmdbuf.len(), cmdbuf));
+            }
 
             // replace after compare for next round
             vehicle_state = newstate;
