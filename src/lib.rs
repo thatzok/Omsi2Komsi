@@ -256,7 +256,7 @@ extern "system" fn wndproc(
                         };
                         let mut wide_msg: Vec<u16> =
                             msg.encode_utf16().chain(std::iter::once(0)).collect();
-                        DrawTextW(mem_hdc, &mut wide_msg, &mut r, DT_LEFT | DT_SINGLELINE);
+                        let _ = DrawTextW(mem_hdc, &mut wide_msg, &mut r, DT_LEFT | DT_SINGLELINE);
                         y -= 20;
                         if y < 0 {
                             break;
@@ -379,26 +379,32 @@ pub fn get_vehicle_state_from_omsi(engineonvalue: u8) -> VehicleState {
 pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
     // load config
 
-    // TODO checking for file not found and elements not found
-    // now we get config ini
-    let mut config = Ini::new();
-    let _ = config.load(".\\plugins\\omsi2komsi.opl");
+    let mut config_path = ".\\plugins\\omsi2komsi.opl";
+    if !std::path::Path::new(config_path).exists() {
+        config_path = "omsi2komsi.opl";
+    }
 
-    let baudrate = config.getint("omsi2komsi", "baudrate").unwrap().unwrap() as u32;
-    let portname = config.get("omsi2komsi", "portname").unwrap();
+    let mut config = Ini::new();
+    let _ = config.load(config_path);
+
+    let baudrate = config.getint("omsi2komsi", "baudrate").ok().flatten().unwrap_or(115200) as u32;
+    let portname = config.get("omsi2komsi", "portname").unwrap_or("com1".to_string());
 
     let serial_enabled = config
         .getbool("omsi2komsi", "serialportenabled")
-        .unwrap()
+        .ok()
+        .flatten()
         .unwrap_or(false);
     SERIAL_PORT_ENABLED.store(serial_enabled, Relaxed);
 
     let engineonvalue = config
         .getint("omsi2komsi", "engineonvalue")
-        .unwrap()
-        .unwrap() as u8;
+        .ok()
+        .flatten()
+        .unwrap_or(1) as u8;
 
-    if let Ok(content) = std::fs::read_to_string(".\\plugins\\omsi2komsi.opl") {
+    if let Ok(content) = std::fs::read_to_string(config_path) {
+        log_message(format!("Loading config from {}", config_path));
         let mut in_varlist = false;
         let mut in_datamappings = false;
         let mut in_hotkey = false;
@@ -438,12 +444,12 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
             }
 
             if in_varlist {
-                // first line after [varlist] is the count, skip it
-                if let Ok(_) = line.parse::<u32>() {
+                let var_name = line.to_lowercase();
+                // skip if the line is just the count (integer)
+                if temp_var_names.is_empty() && var_name.parse::<u32>().is_ok() {
                     continue;
                 }
 
-                let var_name = line.to_lowercase();
                 var_map.insert(var_name.clone(), temp_var_names.len());
                 temp_var_names.push(var_name);
             }
@@ -484,6 +490,7 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
                         };
 
                         if field != OmsiDataField::None && idx < SHARED_ARRAY_SIZE {
+                            log_message(format!("Mapping variable '{}' (index {}) to {:?}", source, idx, field));
                             DATA_MAPPING[idx].store(field as usize, Relaxed);
                         }
                     }
@@ -619,7 +626,7 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
 // #[unsafe(no_mangle)]
 #[unsafe(export_name = "AccessVariable")]
 pub unsafe extern "stdcall" fn AccessVariable(
-    variableIndex: u8,
+    variableIndex: u16,
     value: *const c_float,
     writeValue: *const bool,
 ) {
@@ -684,7 +691,7 @@ pub unsafe extern "stdcall" fn AccessVariable(
 // #[unsafe(no_mangle)]
 #[unsafe(export_name = "AccessStringVariable")]
 pub unsafe extern "stdcall" fn AccessStringVariable(
-    variableIndex: u8,
+    variableIndex: u16,
     firstCharacterAddress: *const c_char,
     writeValue: *const bool,
 ) {
@@ -708,7 +715,7 @@ pub unsafe extern "stdcall" fn AccessStringVariable(
 // #[unsafe(no_mangle)]
 #[unsafe(export_name = "AccessSystemVariable")]
 pub unsafe extern "stdcall" fn AccessSystemVariable(
-    variableIndex: u8,
+    variableIndex: u16,
     value: *const c_float,
     writeValue: *const bool,
 ) {
@@ -730,7 +737,7 @@ pub unsafe extern "stdcall" fn AccessSystemVariable(
 #[allow(non_snake_case, unused_variables)]
 // #[unsafe(no_mangle)]
 #[unsafe(export_name = "AccessTrigger")]
-pub unsafe extern "stdcall" fn AccessTrigger(variableIndex: u8, triggerScript: *const bool) {}
+pub unsafe extern "stdcall" fn AccessTrigger(variableIndex: u16, triggerScript: *const bool) {}
 
 /// This function is called when the plugin is unloaded by Omsi 2.
 ///
