@@ -18,32 +18,6 @@ An Arduino/ESP32 or similar device connected to the USB port can then read these
 
 The configuration is done via the `omsi2komsi.opl` file, which must be located in the same directory as the DLL.
 
-```ini
-[dll]
-omsi2komsi.dll
-
-[varlist]
-14
-elec_busbar_main
-cockpit_light_batterie
-Velocity
-door_light_1
-door_light_2
-door_light_3
-haltewunsch
-AI_Light
-lights_fern
-cockpit_light_feststellbremse
-AI_Blinker_L
-AI_Blinker_R
-tank_percent
-bremse_halte
-
-[omsi2komsi]
-portname = com22
-baudrate = 115200
-engineonvalue = 1
-```
 
 ### OmsiLogger
 
@@ -56,20 +30,6 @@ OmsiLogger is a diagnostic tool that displays real-time values of OMSI 2 variabl
 3. It will log the changed values defined in `omsilogger.opl` to a file named `omsilogger_YYYY-MM-DD.txt` in the OMSI 2 directory.
 
 The configuration file `omsilogger.opl` allows you to define the variables to monitor and the hotkey:
-
-```ini
-[dll]
-omsilogger.dll
-
-[varlist]
-2
-Velocity
-engine_n
-
-[hotkey]
-0x79
-```
-*(0x79 is the virtual key code for F10)*
 
 ## Development
 
