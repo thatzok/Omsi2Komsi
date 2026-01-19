@@ -1,0 +1,36 @@
+name: Rust Build Win32
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+        targets: i686-pc-windows-msvc
+
+    - name: Build
+      run: |
+        cargo build --release --target i686-pc-windows-msvc
+        cargo build --release --target i686-pc-windows-msvc --example omsilogger
+
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: omsi2komsi-win32-binaries
+        path: |
+          target/i686-pc-windows-msvc/release/omsi2komsi.dll
+          target/i686-pc-windows-msvc/release/examples/omsilogger.dll
