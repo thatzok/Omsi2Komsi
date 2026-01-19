@@ -1,6 +1,6 @@
 [package]
 name = "omsi_2_komsi"
-version = "2.1.0"
+version = "2.1.1"
 edition = "2024"
 rust-version = "1.92"
 
@@ -23,7 +23,7 @@ serialport = "4.8"
 configparser = "3.1"
 chrono = "0.4"
 atomic_float = "1.1"
-komsi="0.4.0"
+komsi="0.5.0"
 
 [dependencies.windows]
 version = "0.*"
