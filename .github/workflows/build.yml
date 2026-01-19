@@ -44,11 +44,10 @@ jobs:
         Copy-Item "LICENSE" -Destination "$staging/"
         Copy-Item "liesmich.txt" -Destination "$staging/"
         
-        Compress-Archive -Path "$staging/*" -DestinationPath "$zipName"
-        echo "ZIP_NAME=$zipName" >> $env:GITHUB_ENV
+        echo "VERSION=$version" >> $env:GITHUB_ENV
 
     - name: Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ env.ZIP_NAME }}
-        path: ${{ env.ZIP_NAME }}
+        name: Omsi2Komsi-${{ env.VERSION }}
+        path: staging/*
