@@ -2,9 +2,6 @@
 #[cfg(not(target_arch = "x86"))]
 compile_error!("This plugin must be compiled for x86 (32-bit) to be compatible with OMSI!");
 
-mod komsi;
-mod vehicle;
-
 use configparser::ini::Ini;
 use core::sync::atomic::Ordering::Relaxed;
 use libc::c_char;
@@ -16,7 +13,8 @@ use std::time::Duration;
 
 use atomic_float::AtomicF32;
 
-use crate::vehicle::{VehicleLogger, VehicleState};
+use komsi::komsi::KomsiCommandKind;
+use komsi::vehicle::{VehicleLogger, VehicleState};
 
 #[allow(non_camel_case_types)]
 pub type uintptr_t = usize;
@@ -586,8 +584,9 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
                             Ok(mut p) => {
                                 log_message(format!("Serial port {} opened successfully", portname_clone));
                                 // send SimulatorType:OMSI
-                                let string = "O0\x0a";
-                                if let Err(e) = p.write_all(string.as_bytes()) {
+                                let mut init_buf = komsi::komsi::build_komsi_command(KomsiCommandKind::SimulatorType, 0);
+                                init_buf.extend(komsi::komsi::build_komsi_command(KomsiCommandKind::EOL, 0));
+                                if let Err(e) = p.write_all(&init_buf) {
                                     log_message(format!("Failed to send init string: {}", e));
                                 }
                                 *port_guard = Some(p);
