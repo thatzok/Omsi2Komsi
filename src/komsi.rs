@@ -15,7 +15,7 @@ pub enum KomsiCommandKind {
     LightsHighBeam = 77,     // A13 M
     BatteryLight = 78,       // N
     SimulatorType = 79,      // O
-    A16 = 80,                // P
+    DoorEnable = 80,         // P
     A17 = 81,                // Q
     A18 = 82,                // R
     A19 = 83,                // S

@@ -273,8 +273,8 @@ impl VehicleState {
                     self.door_enable, new.door_enable
                 ));
             }
-            // TODO build_komsi_command_u8(KomsiCommandKind::DoorEnable, new.door_enable);
-
+            let mut b = build_komsi_command_u8(KomsiCommandKind::DoorEnable, new.door_enable);
+            buffer.append(&mut b);
         }
 
         // zeilenende hinzu, wenn buffer nicht leer
@@ -286,3 +286,5 @@ impl VehicleState {
         buffer
     }
 }
+
+
