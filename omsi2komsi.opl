@@ -3,7 +3,7 @@
 omsi2komsi.dll
 
 [varlist]
-14
+17
 elec_busbar_main
 cockpit_light_batterie
 Velocity
@@ -18,6 +18,9 @@ AI_Blinker_L
 AI_Blinker_R
 tank_percent
 bremse_halte
+blafasel_one
+blafasel_two
+blafasel_three
 
 [omsi2komsi]
 portname = com22
@@ -41,6 +44,7 @@ IndicatorLeft=ai_blinker_l
 IndicatorRight=ai_blinker_r
 Fuel=tank_percent
 StopBrake=bremse_halte
+DoorEnable=blafasel_one,blafasel_two,blafasel_three
 
 [hotkey]
 0x79

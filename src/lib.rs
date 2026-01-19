@@ -478,28 +478,37 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
                     let target = parts[0].trim().to_lowercase();
                     let source = parts[1].trim().to_lowercase();
 
-                    if let Some(&idx) = var_map.get(&source) {
-                        let field = match target.as_str() {
-                            "ignition" => OmsiDataField::Ignition,
-                            "battery" => OmsiDataField::Battery,
-                            "speed" => OmsiDataField::Speed,
-                            "frontdoor" => OmsiDataField::FrontDoor,
-                            "seconddoor" => OmsiDataField::SecondDoor,
-                            "thirddoor" => OmsiDataField::ThirdDoor,
-                            "stoprequest" => OmsiDataField::StopRequest,
-                            "lightmain" => OmsiDataField::LightMain,
-                            "lightshighbeam" => OmsiDataField::LightsHighBeam,
-                            "fixingbrake" => OmsiDataField::FixingBrake,
-                            "indicatorleft" => OmsiDataField::IndicatorLeft,
-                            "indicatorright" => OmsiDataField::IndicatorRight,
-                            "fuel" => OmsiDataField::Fuel,
-                            "stopbrake" => OmsiDataField::StopBrake,
-                            _ => OmsiDataField::None,
-                        };
+                    let field = match target.as_str() {
+                        "ignition" => OmsiDataField::Ignition,
+                        "battery" => OmsiDataField::Battery,
+                        "speed" => OmsiDataField::Speed,
+                        "frontdoor" => OmsiDataField::FrontDoor,
+                        "seconddoor" => OmsiDataField::SecondDoor,
+                        "thirddoor" => OmsiDataField::ThirdDoor,
+                        "stoprequest" => OmsiDataField::StopRequest,
+                        "lightmain" => OmsiDataField::LightMain,
+                        "lightshighbeam" => OmsiDataField::LightsHighBeam,
+                        "fixingbrake" => OmsiDataField::FixingBrake,
+                        "indicatorleft" => OmsiDataField::IndicatorLeft,
+                        "indicatorright" => OmsiDataField::IndicatorRight,
+                        "fuel" => OmsiDataField::Fuel,
+                        "stopbrake" => OmsiDataField::StopBrake,
+                        "doorenable" => OmsiDataField::DoorEnable,
+                        _ => OmsiDataField::None,
+                    };
 
-                        if field != OmsiDataField::None && idx < SHARED_ARRAY_SIZE {
-                            log_message(format!("Mapping variable '{}' (index {}) to {:?}", source, idx, field));
-                            DATA_MAPPING[idx].store(field as usize, Relaxed);
+                    if field != OmsiDataField::None {
+                        for source_part in source.split(',') {
+                            let source_part = source_part.trim();
+                            if let Some(&idx) = var_map.get(source_part) {
+                                if idx < SHARED_ARRAY_SIZE {
+                                    log_message(format!(
+                                        "Mapping variable '{}' (index {}) to {:?}",
+                                        source_part, idx, field
+                                    ));
+                                    DATA_MAPPING[idx].store(field as usize, Relaxed);
+                                }
+                            }
                         }
                     }
                 }
