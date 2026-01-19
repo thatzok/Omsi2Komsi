@@ -3,6 +3,8 @@ name: Rust Build Win32
 on:
   push:
     branches: [ "main" ]
+    tags:
+      - 'v*'
   pull_request:
     branches: [ "main" ]
 
@@ -27,10 +29,28 @@ jobs:
         cargo build --release --target i686-pc-windows-msvc
         cargo build --release --target i686-pc-windows-msvc --example omsilogger
 
+    - name: Prepare Release Artifacts
+      shell: pwsh
+      run: |
+        $version = "${{ github.ref_name }}".TrimStart("v")
+        if ("${{ github.ref_type }}" -ne "tag") { $version = "dev" }
+        $zipName = "Omsi2Komsi-$version.zip"
+        $staging = "staging"
+        New-Item -ItemType Directory -Path "$staging/plugins" -Force
+        
+        Copy-Item "target/i686-pc-windows-msvc/release/omsi2komsi.dll" -Destination "$staging/plugins/"
+        Copy-Item "target/i686-pc-windows-msvc/release/examples/omsilogger.dll" -Destination "$staging/plugins/"
+        Copy-Item "omsi2komsi.opl" -Destination "$staging/plugins"
+        Copy-Item "omsilogger.opl" -Destination "$staging/plugins"
+        Copy-Item "README.md" -Destination "$staging/"
+        Copy-Item "LICENSE" -Destination "$staging/"
+        Copy-Item "liesmich.txt" -Destination "$staging/"
+        
+        Compress-Archive -Path "$staging/*" -DestinationPath "$zipName"
+        echo "ZIP_NAME=$zipName" >> $env:GITHUB_ENV
+
     - name: Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: omsi2komsi-win32-binaries
-        path: |
-          target/i686-pc-windows-msvc/release/omsi2komsi.dll
-          target/i686-pc-windows-msvc/release/examples/omsilogger.dll
+        name: ${{ env.ZIP_NAME }}
+        path: ${{ env.ZIP_NAME }}
