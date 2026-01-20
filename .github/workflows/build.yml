@@ -34,7 +34,7 @@ jobs:
         if ("${{ github.ref_type }}" -ne "tag") { $version = "dev" }
         $zipName = "Omsi2Komsi-$version.zip"
         $staging = "staging"
-        New-Item -ItemType Directory -Path "$staging/plugins" -Force
+        New-Item -ItemType Directory -Path "$staging/OMSI 2/plugins" -Force
         
         Copy-Item "target/i686-pc-windows-msvc/release/omsi2komsi.dll" -Destination "$staging/OMSI 2/plugins/"
         Copy-Item "target/i686-pc-windows-msvc/release/examples/omsilogger.dll" -Destination "$staging/OMSI 2/plugins/"
