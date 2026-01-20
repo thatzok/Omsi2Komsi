@@ -36,10 +36,10 @@ jobs:
         $staging = "staging"
         New-Item -ItemType Directory -Path "$staging/plugins" -Force
         
-        Copy-Item "target/i686-pc-windows-msvc/release/omsi2komsi.dll" -Destination "$staging/plugins/"
-        Copy-Item "target/i686-pc-windows-msvc/release/examples/omsilogger.dll" -Destination "$staging/plugins/"
-        Copy-Item "omsi2komsi.opl" -Destination "$staging/plugins"
-        Copy-Item "omsilogger.opl" -Destination "$staging/plugins"
+        Copy-Item "target/i686-pc-windows-msvc/release/omsi2komsi.dll" -Destination "$staging/OMSI 2/plugins/"
+        Copy-Item "target/i686-pc-windows-msvc/release/examples/omsilogger.dll" -Destination "$staging/OMSI 2/plugins/"
+        Copy-Item "omsi2komsi.opl" -Destination "$staging/OMSI 2/plugins"
+        Copy-Item "omsilogger.opl" -Destination "$staging/OMSI 2/plugins"
         Copy-Item "README.md" -Destination "$staging/"
         Copy-Item "LICENSE" -Destination "$staging/"
         Copy-Item "liesmich.txt" -Destination "$staging/"
