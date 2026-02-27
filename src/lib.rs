@@ -13,7 +13,7 @@ use std::time::Duration;
 
 use atomic_float::AtomicF32;
 
-use komsi::komsi::KomsiCommandKind;
+use komsi::komsi::{build_komsi_command, build_komsi_command_eol, KomsiCommand};
 use komsi::vehicle::{VehicleLogger, VehicleState};
 
 #[allow(non_camel_case_types)]
@@ -293,46 +293,46 @@ extern "system" fn wndproc(
 pub fn get_vehicle_state_from_omsi(engineonvalue: u8) -> VehicleState {
     let mut s = VehicleState::new();
 
-    s.ignition = OMSI_DATA.ignition.load(Relaxed) as u8;
+    s.ignition = OMSI_DATA.ignition.load(Relaxed) > 0.0;
 
-    if s.ignition == 0 {
+    if !s.ignition {
         return s;
     }
 
     let engineval = OMSI_DATA.battery.load(Relaxed) as u8;
-    s.battery_light = engineval;
+    s.battery_light = engineval > 0;
 
     // we use the value of the battery light for engine on/off state
     if engineval == engineonvalue {
-        s.engine = 1;
+        s.engine = true;
     }
 
     s.speed = OMSI_DATA.speed.load(Relaxed) as u32;
 
-    s.lights_front_door = OMSI_DATA.front_door.load(Relaxed) as u8;
-    s.lights_second_door = OMSI_DATA.second_door.load(Relaxed) as u8;
-    s.lights_third_door = OMSI_DATA.third_door.load(Relaxed) as u8;
+    s.lights_front_door = OMSI_DATA.front_door.load(Relaxed) > 0.0;
+    s.lights_second_door = OMSI_DATA.second_door.load(Relaxed) > 0.0;
+    s.lights_third_door = OMSI_DATA.third_door.load(Relaxed) > 0.0;
 
-    s.door_enable = OMSI_DATA.door_enable.load(Relaxed) as u8;
+    s.door_enable = OMSI_DATA.door_enable.load(Relaxed) > 0.0;
 
     // Türschleife erst setzen und dann errechnen
-    s.doors = OMSI_DATA.door_loop.load(Relaxed) as u8;
-    if s.lights_front_door + s.lights_second_door + s.lights_third_door + s.door_enable > 0 {
-        s.doors = 1;
+    s.doors = OMSI_DATA.door_loop.load(Relaxed) > 0.0;
+    if s.lights_front_door || s.lights_second_door || s.lights_third_door || s.door_enable {
+        s.doors = true;
     }
 
-    s.lights_stop_request = OMSI_DATA.stop_request.load(Relaxed) as u8;
+    s.lights_stop_request = OMSI_DATA.stop_request.load(Relaxed) > 0.0;
 
     let ail = OMSI_DATA.light_main.load(Relaxed) as u8;
 
-    s.lights_high_beam = OMSI_DATA.lights_high_beam.load(Relaxed) as u8;
+    s.lights_high_beam = OMSI_DATA.lights_high_beam.load(Relaxed) > 0.0;
 
     if ail > 0 {
         // TODO search different OMSI variable, because this one is always "2" when high beam is active
-        s.lights_main = 1;
+        s.lights_main = true;
     }
 
-    s.fixing_brake = OMSI_DATA.fixing_brake.load(Relaxed) as u8;
+    s.fixing_brake = OMSI_DATA.fixing_brake.load(Relaxed) > 0.0;
 
     let ail_val = OMSI_DATA.indicator_left.load(Relaxed) as u8;
     let air_val = OMSI_DATA.indicator_right.load(Relaxed) as u8;
@@ -351,14 +351,14 @@ pub fn get_vehicle_state_from_omsi(engineonvalue: u8) -> VehicleState {
 
     if aisum > 1 {
         // left AND right means warning lights
-        s.lights_warning = 1;
+        s.lights_warning = true;
     }
 
     // fuel is in percent, so we multiply by 100
     let f = OMSI_DATA.fuel.load(Relaxed);
-    s.fuel = (f.abs() * 100.0).round() as u32;
+    s.fuel = (f.abs() * 100.0).round() as u8;
 
-    s.lights_stop_brake = OMSI_DATA.stop_brake.load(Relaxed) as u8;
+    s.lights_stop_brake = OMSI_DATA.stop_brake.load(Relaxed) > 0.0;
 
     s
 }
@@ -584,8 +584,10 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
                             Ok(mut p) => {
                                 log_message(format!("Serial port {} opened successfully", portname_clone));
                                 // send SimulatorType:OMSI
-                                let mut init_buf = komsi::komsi::build_komsi_command(KomsiCommandKind::SimulatorType, 0);
-                                init_buf.extend(komsi::komsi::build_komsi_command(KomsiCommandKind::EOL, 0));
+                                let mut init_buf = Vec::new();
+                                let simulator_type = KomsiCommand::SimulatorType(0);
+                                init_buf.extend_from_slice(&build_komsi_command(simulator_type));
+                                init_buf.extend_from_slice(&build_komsi_command_eol());
                                 if let Err(e) = p.write_all(&init_buf) {
                                     log_message(format!("Failed to send init string: {}", e));
                                 }
