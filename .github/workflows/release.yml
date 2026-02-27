@@ -1,0 +1,55 @@
+name: Windows x86 Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-windows-x86:
+    name: Build Windows 32-Bit DLLs
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Rust (32-Bit Target)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.92
+          targets: i686-pc-windows-msvc
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      # 1. DLLs für 32-Bit (x86) bauen
+      - name: Build DLLs
+        run: |
+          cargo build --release --target i686-pc-windows-msvc
+          cargo build --release --target i686-pc-windows-msvc --example omsilogger
+
+      # 2. Paketstruktur vorbereiten (Inklusive .opl Dateien)
+      - name: Prepare Package Folder
+        run: |
+          mkdir release_pkg
+          # DLLs kopieren
+          cp target/i686-pc-windows-msvc/release/omsi2komsi.dll release_pkg/
+          cp target/i686-pc-windows-msvc/release/examples/omsilogger.dll release_pkg/
+          # OPL-Dateien aus dem Root kopieren
+          cp omsi2komsi.opl release_pkg/
+          cp omsilogger.opl release_pkg/
+
+      # 3. ZIP erstellen
+      - name: Create ZIP Archive
+        run: |
+          Compress-Archive -Path release_pkg/* -DestinationPath "omsi_2_komsi_${{ github.ref_name }}_x86.zip"
+
+      # 4. Release erstellen
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: "omsi_2_komsi_${{ github.ref_name }}_x86.zip"
+          generate_release_notes: true
