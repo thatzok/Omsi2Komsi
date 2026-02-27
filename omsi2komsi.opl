@@ -3,7 +3,7 @@
 omsi2komsi.dll
 
 [varlist]
-17
+18
 elec_busbar_main
 cockpit_light_batterie
 Velocity
@@ -21,9 +21,14 @@ bremse_halte
 blafasel_one
 blafasel_two
 blafasel_three
+blafasel_four
 
 [omsi2komsi]
-portname = com22
+portname = com8
+portname2 = 
+portname3 = 
+portname4 = 
+portname5 = 
 baudrate = 115200
 serialportenabled = false
 debug=false
@@ -45,6 +50,7 @@ IndicatorRight=ai_blinker_r
 Fuel=tank_percent
 StopBrake=bremse_halte
 DoorEnable=blafasel_one,blafasel_two,blafasel_three
+DateTime=blafasel_four
 
 [hotkey]
 0x79

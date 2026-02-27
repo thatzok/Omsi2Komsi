@@ -38,7 +38,7 @@ static WINDOW_VISIBLE: AtomicBool = AtomicBool::new(false);
 static SERIAL_PORT_ENABLED: AtomicBool = AtomicBool::new(false);
 static DEBUG_MODE: AtomicBool = AtomicBool::new(false);
 
-static SERIAL_PORT: Mutex<Option<Box<dyn serialport::SerialPort>>> = Mutex::new(None);
+static SERIAL_PORTS: Mutex<Vec<Option<Box<dyn serialport::SerialPort>>>> = Mutex::new(Vec::new());
 
 #[unsafe(no_mangle)]
 pub extern "C" fn log_message_extern(msg: *const c_char) {
@@ -387,7 +387,24 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
     let _ = config.load(config_path);
 
     let baudrate = config.getint("omsi2komsi", "baudrate").ok().flatten().unwrap_or(115200) as u32;
-    let portname = config.get("omsi2komsi", "portname").unwrap_or("com1".to_string());
+    let mut portnames = Vec::new();
+    if let Some(p) = config.get("omsi2komsi", "portname") {
+        if !p.is_empty() {
+            portnames.push(p);
+        }
+    }
+    for i in 2..=5 {
+        let key = format!("portname{}", i);
+        if let Some(p) = config.get("omsi2komsi", &key) {
+            if !p.is_empty() {
+                portnames.push(p);
+            }
+        }
+    }
+
+    if portnames.is_empty() {
+        portnames.push("com1".to_string());
+    }
 
     let serial_enabled = config
         .getbool("omsi2komsi", "serialportenabled")
@@ -548,7 +565,14 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
 
     let mut vehicle_state = VehicleState::new();
 
-    let portname_clone = portname.clone();
+    let portnames_clone = portnames.clone();
+    {
+        let mut ports = SERIAL_PORTS.lock().unwrap();
+        for _ in 0..portnames_clone.len() {
+            ports.push(None);
+        }
+    }
+
     thread::spawn(move || {
         loop {
             // get data from OMSI
@@ -574,35 +598,36 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
             vehicle_state = newstate;
 
             if cmdbuf.len() > 0 && SERIAL_PORT_ENABLED.load(Relaxed) {
-                // Check if port is open
-                let mut port_guard = SERIAL_PORT.lock().unwrap();
-                if port_guard.is_none() {
-                    match serialport::new(&portname_clone, baudrate)
-                        .timeout(Duration::from_millis(10))
-                        .open()
+                let mut ports_guard = SERIAL_PORTS.lock().unwrap();
+                for (i, portname_item) in portnames_clone.iter().enumerate() {
+                    if ports_guard[i].is_none() {
+                        match serialport::new(portname_item, baudrate)
+                            .timeout(Duration::from_millis(10))
+                            .open()
                         {
                             Ok(mut p) => {
-                                log_message(format!("Serial port {} opened successfully", portname_clone));
+                                log_message(format!("Serial port {} opened successfully", portname_item));
                                 // send SimulatorType:OMSI
                                 let mut init_buf = Vec::new();
                                 let simulator_type = KomsiCommand::SimulatorType(0);
                                 init_buf.extend_from_slice(&build_komsi_command(simulator_type));
                                 init_buf.extend_from_slice(&build_komsi_command_eol());
                                 if let Err(e) = p.write_all(&init_buf) {
-                                    log_message(format!("Failed to send init string: {}", e));
+                                    log_message(format!("Failed to send init string to {}: {}", portname_item, e));
                                 }
-                                *port_guard = Some(p);
+                                ports_guard[i] = Some(p);
                             }
                             Err(e) => {
-                                log_message(format!("Failed to open serial port {}: {}", portname_clone, e));
+                                log_message(format!("Failed to open serial port {}: {}", portname_item, e));
                             }
                         }
-                }
+                    }
 
-                if let Some(ref mut p) = *port_guard {
-                    if let Err(e) = p.write_all(&cmdbuf) {
-                        log_message(format!("Serial write error: {}. Closing port.", e));
-                        *port_guard = None;
+                    if let Some(ref mut p) = ports_guard[i] {
+                        if let Err(e) = p.write_all(&cmdbuf) {
+                            log_message(format!("Serial write error on {}: {}. Closing port.", portname_item, e));
+                            ports_guard[i] = None;
+                        }
                     }
                 }
             }
