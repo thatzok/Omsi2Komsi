@@ -391,6 +391,10 @@ pub fn get_vehicle_state_from_omsi(engineonvalue: u8) -> VehicleState {
     s.datetime.month = OMSI_DATA.month.load(Relaxed) as u8;
     s.datetime.year = OMSI_DATA.year.load(Relaxed) as u16;
 
+    s.total_distance_km = OMSI_DATA.odometer.load(Relaxed) as u64;
+    s.total_distance = s.total_distance_km * 1000;
+
+
     s
 }
 

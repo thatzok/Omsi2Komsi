@@ -40,7 +40,7 @@ portname3 =
 portname4 = 
 portname5 = 
 baudrate = 115200
-serialportenabled = false
+serialportenabled = true
 debug=false
 engineonvalue = 1
 
