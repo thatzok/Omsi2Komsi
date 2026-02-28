@@ -12,12 +12,16 @@ Omsi2Komsi is a plugin DLL that reads information (speed, lamps, etc.) from OMSI
 
 An Arduino/ESP32 or similar device connected to the USB port can then read these messages and display the data on a physical bus dashboard (e.g., speed on a speedometer, lamp lighting, etc.).
 
-#### Usage
+#### Download & Installation
+1. Go to the latest releases page [latest Releases](https://github.com/YourUsername/TheBusCmd/releases/latest).
+2. Download the file `omsi_2_komsi_vx.x.x_x86.zip`.
+3. Extract the contents of the ZIP file into a folder of your choice.
+4. You will find both `omsi2komsi.dll` and `omsilogger.dll` along with their `.opl` files.
+5. Copy both `omsi2komsi.dll` and `omsi2komsi.opl` into the "`plugins`" directory of OMSI 2.
+6. Edit the `omsi2komsi.opl` file and change the portname to the port where your Arduino/ESP32 is connected.
+7. Start OMSI 2.
 
-1. Copy both `omsi2komsi.dll` and `omsi2komsi.opl` into the `plugins` directory of OMSI 2.
-2. Edit the `omsi2komsi.opl` file and change the `portname` to the one where your Arduino/ESP32 is connected.
-3. Start OMSI 2.
-4. By default, press **F10** to toggle the logger window visibility.
+By default, press **F10** to toggle the visibility of the logger window and display diagnostic messages.
 
 The configuration is done via the `omsi2komsi.opl` file, which must be located in the same directory as the DLL.
 
@@ -28,7 +32,7 @@ OmsiLogger is a diagnostic tool that displays real-time values of OMSI 2 variabl
 
 #### Usage
 
-1. Copy `omsilogger.dll` (compiled from the example) and `omsilogger.opl` into the `plugins` directory.
+1. Copy `omsilogger.dll` and `omsilogger.opl` into the `plugins` directory.
 2. Start OMSI 2.
 3. By default, press **F10** to toggle the logger window visibility.
 4. It will log the changed values defined in `omsilogger.opl` to a file named `omsilogger_YYYY-MM-DD.txt` in the OMSI 2 directory.
