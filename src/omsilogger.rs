@@ -25,6 +25,7 @@ static VAR_NAMES: OnceLock<Vec<String>> = OnceLock::new();
 static HOTKEY: OnceLock<u32> = OnceLock::new();
 static LOG_MESSAGES: Mutex<Vec<String>> = Mutex::new(Vec::new());
 static WINDOW_VISIBLE: AtomicBool = AtomicBool::new(false);
+static SYSTEM_VAR_COUNT: AtomicU32 = AtomicU32::new(0);
 
 #[allow(non_snake_case)]
 #[unsafe(export_name = "PluginStart")]
@@ -37,27 +38,56 @@ pub unsafe extern "stdcall" fn PluginStart(_a_owner: uintptr_t) {
     if let Ok(file) = File::open(opl_path) {
         let reader = BufReader::new(file);
         let mut in_varlist = false;
+        let mut in_systemvarlist = false;
         let mut in_hotkey = false;
         let mut count = 0;
         let mut expected_count = 0;
+        let mut system_var_names = Vec::new();
 
         for line in reader.lines() {
             if let Ok(l) = line {
                 let l = l.trim();
                 if l == "[varlist]" {
                     in_varlist = true;
+                    in_systemvarlist = false;
                     in_hotkey = false;
+                    count = 0;
+                    expected_count = 0;
+                    continue;
+                }
+                if l == "[systemvarlist]" {
+                    in_systemvarlist = true;
+                    in_varlist = false;
+                    in_hotkey = false;
+                    count = 0;
+                    expected_count = 0;
                     continue;
                 }
                 if l == "[hotkey]" {
                     in_hotkey = true;
                     in_varlist = false;
+                    in_systemvarlist = false;
                     continue;
+                }
+                if in_systemvarlist {
+                    if expected_count == 0 {
+                        if let Ok(c) = l.parse::<usize>() {
+                            expected_count = c;
+                            if expected_count == 0 { in_systemvarlist = false; }
+                        }
+                    } else {
+                        system_var_names.push(l.to_string());
+                        count += 1;
+                        if count >= expected_count {
+                            in_systemvarlist = false;
+                        }
+                    }
                 }
                 if in_varlist {
                     if expected_count == 0 {
                         if let Ok(c) = l.parse::<usize>() {
                             expected_count = c;
+                            if expected_count == 0 { in_varlist = false; }
                         }
                     } else {
                         var_names.push(l.to_string());
@@ -78,6 +108,10 @@ pub unsafe extern "stdcall" fn PluginStart(_a_owner: uintptr_t) {
                 }
             }
         }
+        SYSTEM_VAR_COUNT.store(system_var_names.len() as u32, Relaxed);
+        let mut combined_names = system_var_names;
+        combined_names.extend(var_names);
+        var_names = combined_names;
     }
 
     let _ = VAR_NAMES.set(var_names);
@@ -178,7 +212,8 @@ pub unsafe extern "stdcall" fn AccessVariable(
     value: *const c_float,
     writeValue: *const bool,
 ) {
-    let index = variableIndex as usize;
+    let offset = SYSTEM_VAR_COUNT.load(Relaxed) as usize;
+    let index = variableIndex as usize + offset;
     if index < SHARED_ARRAY_SIZE {
         unsafe {
             let f = *value;

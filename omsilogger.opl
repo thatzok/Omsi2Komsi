@@ -3,10 +3,11 @@
 omsiLogger.dll
 
 [varlist]
-14
+15
 elec_busbar_main
 cockpit_light_batterie
 Velocity
+kmcounter_km
 door_light_1
 door_light_2
 door_light_3
@@ -18,6 +19,15 @@ AI_Blinker_L
 AI_Blinker_R
 tank_percent
 bremse_halte
+
+
+[systemvarlist]
+4
+Time
+Day
+Month
+Year
+
 
 [hotkey]
 0x79

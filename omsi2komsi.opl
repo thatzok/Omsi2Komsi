@@ -3,10 +3,11 @@
 omsi2komsi.dll
 
 [varlist]
-18
+19
 elec_busbar_main
 cockpit_light_batterie
 Velocity
+kmcounter_km
 door_light_1
 door_light_2
 door_light_3
@@ -23,6 +24,15 @@ blafasel_two
 blafasel_three
 blafasel_four
 
+[systemvarlist]
+4
+Time
+Day
+Month
+Year
+
+
+
 [omsi2komsi]
 portname = com8
 portname2 = 
@@ -35,6 +45,11 @@ debug=false
 engineonvalue = 1
 
 [datamappings]
+Time=Time
+Day=Day
+Month=Month
+Year=Year
+Odometer=kmcounter_km
 Ignition=elec_busbar_main
 Battery=cockpit_light_batterie
 Speed=velocity

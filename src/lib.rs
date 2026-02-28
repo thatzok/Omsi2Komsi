@@ -37,6 +37,7 @@ static LOG_MESSAGES: Mutex<Vec<String>> = Mutex::new(Vec::new());
 static WINDOW_VISIBLE: AtomicBool = AtomicBool::new(false);
 static SERIAL_PORT_ENABLED: AtomicBool = AtomicBool::new(false);
 static DEBUG_MODE: AtomicBool = AtomicBool::new(false);
+static SYSTEM_VAR_COUNT: AtomicUsize = AtomicUsize::new(0);
 
 static SERIAL_PORTS: Mutex<Vec<Option<Box<dyn serialport::SerialPort>>>> = Mutex::new(Vec::new());
 
@@ -79,6 +80,11 @@ struct OmsiData {
     stop_brake: AtomicF32,
     door_loop: AtomicF32,
     door_enable: AtomicF32,
+    time: AtomicF32,
+    day: AtomicF32,
+    month: AtomicF32,
+    year: AtomicF32,
+    odometer: AtomicF32,
 }
 
 static OMSI_DATA: OmsiData = OmsiData {
@@ -98,6 +104,11 @@ static OMSI_DATA: OmsiData = OmsiData {
     stop_brake: AtomicF32::new(0.0),
     door_loop: AtomicF32::new(0.0),
     door_enable: AtomicF32::new(0.0),
+    time: AtomicF32::new(0.0),
+    day: AtomicF32::new(0.0),
+    month: AtomicF32::new(0.0),
+    year: AtomicF32::new(0.0),
+    odometer: AtomicF32::new(0.0),
 };
 
 #[repr(usize)]
@@ -120,6 +131,11 @@ enum OmsiDataField {
     StopBrake,
     DoorLoop,
     DoorEnable,
+    Time,
+    Day,
+    Month,
+    Year,
+    Odometer,
 }
 
 impl From<usize> for OmsiDataField {
@@ -140,6 +156,12 @@ impl From<usize> for OmsiDataField {
             x if x == OmsiDataField::Fuel as usize => OmsiDataField::Fuel,
             x if x == OmsiDataField::StopBrake as usize => OmsiDataField::StopBrake,
             x if x == OmsiDataField::DoorLoop as usize => OmsiDataField::DoorLoop,
+            x if x == OmsiDataField::DoorEnable as usize => OmsiDataField::DoorEnable,
+            x if x == OmsiDataField::Time as usize => OmsiDataField::Time,
+            x if x == OmsiDataField::Day as usize => OmsiDataField::Day,
+            x if x == OmsiDataField::Month as usize => OmsiDataField::Month,
+            x if x == OmsiDataField::Year as usize => OmsiDataField::Year,
+            x if x == OmsiDataField::Odometer as usize => OmsiDataField::Odometer,
             _ => OmsiDataField::None,
         }
     }
@@ -360,6 +382,15 @@ pub fn get_vehicle_state_from_omsi(engineonvalue: u8) -> VehicleState {
 
     s.lights_stop_brake = OMSI_DATA.stop_brake.load(Relaxed) > 0.0;
 
+    let time_sec = OMSI_DATA.time.load(Relaxed) as u32;
+    s.datetime.hour = (time_sec / 3600) as u8;
+    s.datetime.min = ((time_sec % 3600) / 60) as u8;
+    s.datetime.sec = (time_sec % 60) as u8;
+
+    s.datetime.day = OMSI_DATA.day.load(Relaxed) as u8;
+    s.datetime.month = OMSI_DATA.month.load(Relaxed) as u8;
+    s.datetime.year = OMSI_DATA.year.load(Relaxed) as u16;
+
     s
 }
 
@@ -429,11 +460,11 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
     if let Ok(content) = std::fs::read_to_string(config_path) {
         log_message(format!("Loading config from {}", config_path));
         let mut in_varlist = false;
+        let mut in_systemvarlist = false;
         let mut in_datamappings = false;
         let mut in_hotkey = false;
         let mut hotkey_val = 0x79; // Default F10
-        let mut var_map: std::collections::HashMap<String, usize> =
-            std::collections::HashMap::new();
+        let mut temp_system_var_names: Vec<String> = Vec::new();
         let mut temp_var_names: Vec<String> = Vec::new();
 
         for line in content.lines() {
@@ -443,27 +474,48 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
             }
             if line == "[varlist]" {
                 in_varlist = true;
+                in_systemvarlist = false;
+                in_datamappings = false;
+                in_hotkey = false;
+                continue;
+            }
+            if line == "[systemvarlist]" {
+                in_varlist = false;
+                in_systemvarlist = true;
                 in_datamappings = false;
                 in_hotkey = false;
                 continue;
             }
             if line == "[datamappings]" {
                 in_varlist = false;
+                in_systemvarlist = false;
                 in_datamappings = true;
                 in_hotkey = false;
                 continue;
             }
             if line == "[hotkey]" {
                 in_varlist = false;
+                in_systemvarlist = false;
                 in_datamappings = false;
                 in_hotkey = true;
                 continue;
             }
             if line.starts_with('[') {
                 in_varlist = false;
+                in_systemvarlist = false;
                 in_datamappings = false;
                 in_hotkey = false;
                 continue;
+            }
+
+            if in_systemvarlist {
+                let var_name = line.to_lowercase();
+                // skip if the line is just the count (integer)
+                if temp_system_var_names.is_empty() && var_name.parse::<u32>().is_ok() {
+                    continue;
+                }
+
+                temp_system_var_names.push(var_name);
             }
 
             if in_varlist {
@@ -473,7 +525,6 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
                     continue;
                 }
 
-                var_map.insert(var_name.clone(), temp_var_names.len());
                 temp_var_names.push(var_name);
             }
 
@@ -509,13 +560,37 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
                         "fuel" => OmsiDataField::Fuel,
                         "stopbrake" => OmsiDataField::StopBrake,
                         "doorenable" => OmsiDataField::DoorEnable,
+                        "doorloop" => OmsiDataField::DoorLoop,
+                        "time" => OmsiDataField::Time,
+                        "day" => OmsiDataField::Day,
+                        "month" => OmsiDataField::Month,
+                        "year" => OmsiDataField::Year,
+                        "odometer" => OmsiDataField::Odometer,
                         _ => OmsiDataField::None,
                     };
 
                     if field != OmsiDataField::None {
                         for source_part in source.split(',') {
                             let source_part = source_part.trim();
-                            if let Some(&idx) = var_map.get(source_part) {
+                            
+                            // Map source_part to index
+                            let mut found_idx = None;
+                            for (i, name) in temp_system_var_names.iter().enumerate() {
+                                if name == source_part {
+                                    found_idx = Some(i);
+                                    break;
+                                }
+                            }
+                            if found_idx.is_none() {
+                                for (i, name) in temp_var_names.iter().enumerate() {
+                                    if name == source_part {
+                                        found_idx = Some(temp_system_var_names.len() + i);
+                                        break;
+                                    }
+                                }
+                            }
+
+                            if let Some(idx) = found_idx {
                                 if idx < SHARED_ARRAY_SIZE {
                                     log_message(format!(
                                         "Mapping variable '{}' (index {}) to {:?}",
@@ -530,8 +605,12 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
             }
         }
 
+        SYSTEM_VAR_COUNT.store(temp_system_var_names.len(), Relaxed);
+        let mut combined_names = temp_system_var_names;
+        combined_names.extend(temp_var_names);
+
         if let Ok(mut var_names) = VAR_NAMES.write() {
-            *var_names = temp_var_names;
+            *var_names = combined_names;
         }
         let _ = HOTKEY.set(hotkey_val);
     }
@@ -659,7 +738,8 @@ pub unsafe extern "stdcall" fn AccessVariable(
     value: *const c_float,
     writeValue: *const bool,
 ) {
-    let index = variableIndex as usize;
+    let offset = SYSTEM_VAR_COUNT.load(Relaxed);
+    let index = variableIndex as usize + offset;
 
     let field = {
         let mut ofield = OmsiDataField::None;
@@ -698,6 +778,11 @@ pub unsafe extern "stdcall" fn AccessVariable(
         OmsiDataField::StopBrake => OMSI_DATA.stop_brake.store(val_to_store, Relaxed),
         OmsiDataField::DoorLoop => OMSI_DATA.door_loop.store(val_to_store, Relaxed),
         OmsiDataField::DoorEnable => OMSI_DATA.door_enable.store(val_to_store, Relaxed),
+        OmsiDataField::Time => OMSI_DATA.time.store(val_to_store, Relaxed),
+        OmsiDataField::Day => OMSI_DATA.day.store(val_to_store, Relaxed),
+        OmsiDataField::Month => OMSI_DATA.month.store(val_to_store, Relaxed),
+        OmsiDataField::Year => OMSI_DATA.year.store(val_to_store, Relaxed),
+        OmsiDataField::Odometer => OMSI_DATA.odometer.store(val_to_store, Relaxed),
         OmsiDataField::None => {}
     }
 }
@@ -748,6 +833,52 @@ pub unsafe extern "stdcall" fn AccessSystemVariable(
     value: *const c_float,
     writeValue: *const bool,
 ) {
+    let index = variableIndex as usize;
+
+    let field = {
+        let mut ofield = OmsiDataField::None;
+        if let Ok(names) = VAR_NAMES.read() {
+            if index < names.len() {
+                if index < SHARED_ARRAY_SIZE {
+                    let field_idx = DATA_MAPPING[index].load(Relaxed);
+                    ofield = OmsiDataField::from(field_idx);
+                }
+            }
+        }
+        ofield
+    };
+
+    if field == OmsiDataField::None {
+        return;
+    }
+
+    let f = unsafe { *value };
+    let val_to_store = f as f32;
+
+    match field {
+        OmsiDataField::Ignition => OMSI_DATA.ignition.store(val_to_store, Relaxed),
+        OmsiDataField::Battery => OMSI_DATA.battery.store(val_to_store, Relaxed),
+        OmsiDataField::Speed => OMSI_DATA.speed.store(val_to_store, Relaxed),
+        OmsiDataField::FrontDoor => OMSI_DATA.front_door.store(val_to_store, Relaxed),
+        OmsiDataField::SecondDoor => OMSI_DATA.second_door.store(val_to_store, Relaxed),
+        OmsiDataField::ThirdDoor => OMSI_DATA.third_door.store(val_to_store, Relaxed),
+        OmsiDataField::StopRequest => OMSI_DATA.stop_request.store(val_to_store, Relaxed),
+        OmsiDataField::LightMain => OMSI_DATA.light_main.store(val_to_store, Relaxed),
+        OmsiDataField::LightsHighBeam => OMSI_DATA.lights_high_beam.store(val_to_store, Relaxed),
+        OmsiDataField::FixingBrake => OMSI_DATA.fixing_brake.store(val_to_store, Relaxed),
+        OmsiDataField::IndicatorLeft => OMSI_DATA.indicator_left.store(val_to_store, Relaxed),
+        OmsiDataField::IndicatorRight => OMSI_DATA.indicator_right.store(val_to_store, Relaxed),
+        OmsiDataField::Fuel => OMSI_DATA.fuel.store(val_to_store, Relaxed),
+        OmsiDataField::StopBrake => OMSI_DATA.stop_brake.store(val_to_store, Relaxed),
+        OmsiDataField::DoorLoop => OMSI_DATA.door_loop.store(val_to_store, Relaxed),
+        OmsiDataField::DoorEnable => OMSI_DATA.door_enable.store(val_to_store, Relaxed),
+        OmsiDataField::Time => OMSI_DATA.time.store(val_to_store, Relaxed),
+        OmsiDataField::Day => OMSI_DATA.day.store(val_to_store, Relaxed),
+        OmsiDataField::Month => OMSI_DATA.month.store(val_to_store, Relaxed),
+        OmsiDataField::Year => OMSI_DATA.year.store(val_to_store, Relaxed),
+        OmsiDataField::Odometer => OMSI_DATA.odometer.store(val_to_store, Relaxed),
+        OmsiDataField::None => {}
+    }
 }
 
 /// This function is called by Omsi 2 to access triggers from the plugin.
