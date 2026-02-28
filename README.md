@@ -16,7 +16,7 @@ omsi_2_komsi_v2.4.0_x86.zip
 
 ## Download & Installation
 
-1. Gehe zur Seite des [neuesten Releases](https://github.com/YourUsername/TheBusCmd/releases/latest).
+1. Gehe zur Seite des [neuesten Releases](https://github.com/thatzok/Omsi2Komsi/releases).
 2. Lade die Datei `omsi_2_komsi_vx.x.x_x86.zip` herunter.
 3. Entpacke den Inhalt der ZIP-Datei in einen Ordner deiner Wahl.
 4. Du findest darin sowohl `omsi2komsi.dll` als auch `omsilogger.dll` mit ihren .opl-Dateien.

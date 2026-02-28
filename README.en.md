@@ -13,7 +13,7 @@ Omsi2Komsi is a plugin DLL that reads information (speed, lamps, etc.) from OMSI
 An Arduino/ESP32 or similar device connected to the USB port can then read these messages and display the data on a physical bus dashboard (e.g., speed on a speedometer, lamp lighting, etc.).
 
 #### Download & Installation
-1. Go to the latest releases page [latest Releases](https://github.com/YourUsername/TheBusCmd/releases/latest).
+1. Go to the latest releases page [latest Releases](https://github.com/thatzok/Omsi2Komsi/releases).
 2. Download the file `omsi_2_komsi_vx.x.x_x86.zip`.
 3. Extract the contents of the ZIP file into a folder of your choice.
 4. You will find both `omsi2komsi.dll` and `omsilogger.dll` along with their `.opl` files.
