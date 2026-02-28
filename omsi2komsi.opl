@@ -65,7 +65,6 @@ IndicatorRight=ai_blinker_r
 Fuel=tank_percent
 StopBrake=bremse_halte
 DoorEnable=blafasel_one,blafasel_two,blafasel_three
-DateTime=blafasel_four
 
 [hotkey]
 0x79
