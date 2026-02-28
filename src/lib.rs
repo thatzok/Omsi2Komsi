@@ -741,6 +741,10 @@ pub unsafe extern "stdcall" fn AccessVariable(
     let offset = SYSTEM_VAR_COUNT.load(Relaxed);
     let index = variableIndex as usize + offset;
 
+    handle_variable_access(index, value);
+}
+
+fn handle_variable_access(index: usize, value: *const c_float) {
     let field = {
         let mut ofield = OmsiDataField::None;
         if let Ok(names) = VAR_NAMES.read() {
@@ -834,51 +838,7 @@ pub unsafe extern "stdcall" fn AccessSystemVariable(
     writeValue: *const bool,
 ) {
     let index = variableIndex as usize;
-
-    let field = {
-        let mut ofield = OmsiDataField::None;
-        if let Ok(names) = VAR_NAMES.read() {
-            if index < names.len() {
-                if index < SHARED_ARRAY_SIZE {
-                    let field_idx = DATA_MAPPING[index].load(Relaxed);
-                    ofield = OmsiDataField::from(field_idx);
-                }
-            }
-        }
-        ofield
-    };
-
-    if field == OmsiDataField::None {
-        return;
-    }
-
-    let f = unsafe { *value };
-    let val_to_store = f as f32;
-
-    match field {
-        OmsiDataField::Ignition => OMSI_DATA.ignition.store(val_to_store, Relaxed),
-        OmsiDataField::Battery => OMSI_DATA.battery.store(val_to_store, Relaxed),
-        OmsiDataField::Speed => OMSI_DATA.speed.store(val_to_store, Relaxed),
-        OmsiDataField::FrontDoor => OMSI_DATA.front_door.store(val_to_store, Relaxed),
-        OmsiDataField::SecondDoor => OMSI_DATA.second_door.store(val_to_store, Relaxed),
-        OmsiDataField::ThirdDoor => OMSI_DATA.third_door.store(val_to_store, Relaxed),
-        OmsiDataField::StopRequest => OMSI_DATA.stop_request.store(val_to_store, Relaxed),
-        OmsiDataField::LightMain => OMSI_DATA.light_main.store(val_to_store, Relaxed),
-        OmsiDataField::LightsHighBeam => OMSI_DATA.lights_high_beam.store(val_to_store, Relaxed),
-        OmsiDataField::FixingBrake => OMSI_DATA.fixing_brake.store(val_to_store, Relaxed),
-        OmsiDataField::IndicatorLeft => OMSI_DATA.indicator_left.store(val_to_store, Relaxed),
-        OmsiDataField::IndicatorRight => OMSI_DATA.indicator_right.store(val_to_store, Relaxed),
-        OmsiDataField::Fuel => OMSI_DATA.fuel.store(val_to_store, Relaxed),
-        OmsiDataField::StopBrake => OMSI_DATA.stop_brake.store(val_to_store, Relaxed),
-        OmsiDataField::DoorLoop => OMSI_DATA.door_loop.store(val_to_store, Relaxed),
-        OmsiDataField::DoorEnable => OMSI_DATA.door_enable.store(val_to_store, Relaxed),
-        OmsiDataField::Time => OMSI_DATA.time.store(val_to_store, Relaxed),
-        OmsiDataField::Day => OMSI_DATA.day.store(val_to_store, Relaxed),
-        OmsiDataField::Month => OMSI_DATA.month.store(val_to_store, Relaxed),
-        OmsiDataField::Year => OMSI_DATA.year.store(val_to_store, Relaxed),
-        OmsiDataField::Odometer => OMSI_DATA.odometer.store(val_to_store, Relaxed),
-        OmsiDataField::None => {}
-    }
+    handle_variable_access(index, value);
 }
 
 /// This function is called by Omsi 2 to access triggers from the plugin.
