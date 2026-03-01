@@ -1,6 +1,6 @@
 [package]
 name = "omsi_2_komsi"
-version = "2.6.0"
+version = "2.6.1"
 edition = "2024"
 rust-version = "1.93.1"
 authors = ["ThatZok <af@komplix.de>"]

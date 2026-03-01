@@ -19,7 +19,7 @@ jobs:
       - name: Install Rust (32-Bit Target)
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.92
+          toolchain: 1.93
           targets: i686-pc-windows-msvc
 
       - name: Rust Cache
