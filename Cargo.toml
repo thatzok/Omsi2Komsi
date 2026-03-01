@@ -1,8 +1,8 @@
 [package]
 name = "omsi_2_komsi"
-version = "2.5.0"
+version = "2.6.0"
 edition = "2024"
-rust-version = "1.92"
+rust-version = "1.93.1"
 authors = ["ThatZok <af@komplix.de>"]
 license = "GPL-3.0-or-later"
 
@@ -24,7 +24,7 @@ serialport = "4.8"
 configparser = "3.1"
 chrono = "0.4"
 atomic_float = "1.1"
-komsi="1.2"
+komsi="1.5"
 
 [dependencies.windows]
 version = "0.*"

@@ -144,9 +144,9 @@ dependencies = [
 
 [[package]]
 name = "komsi"
-version = "1.2.0"
+version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3a98172deb0e797a30b0dc3d534f2179edc27851dd03f3d06aed6dfeb803010f"
+checksum = "81a1ea4d36085b89e9c1852cb8cc14fcb3ceaea4eb13646e9bc52e4691e07632"
 
 [[package]]
 name = "libc"
@@ -211,7 +211,7 @@ dependencies = [
 
 [[package]]
 name = "omsi_2_komsi"
-version = "2.5.0"
+version = "2.6.0"
 dependencies = [
  "atomic_float",
  "chrono",

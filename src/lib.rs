@@ -13,7 +13,7 @@ use std::time::Duration;
 
 use atomic_float::AtomicF32;
 
-use komsi::komsi::{build_komsi_command, build_komsi_command_eol, KomsiCommand};
+use komsi::komsi::{KomsiCommand};
 use komsi::vehicle::{VehicleLogger, VehicleState};
 
 #[allow(non_camel_case_types)]
@@ -693,8 +693,8 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
                                 // send SimulatorType:OMSI
                                 let mut init_buf = Vec::new();
                                 let simulator_type = KomsiCommand::SimulatorType(0);
-                                init_buf.extend_from_slice(&build_komsi_command(simulator_type));
-                                init_buf.extend_from_slice(&build_komsi_command_eol());
+                                init_buf.extend_from_slice(&KomsiCommand::build(&simulator_type));
+                                init_buf.extend_from_slice(&KomsiCommand::build_eol());
                                 if let Err(e) = p.write_all(&init_buf) {
                                     log_message(format!("Failed to send init string to {}: {}", portname_item, e));
                                 }
