@@ -78,8 +78,8 @@ struct OmsiData {
     indicator_right: AtomicF32,
     fuel: AtomicF32,
     stop_brake: AtomicF32,
-    door_loop: AtomicF32,
-    door_enable: AtomicF32,
+    door_open: AtomicF32,
+    door_clearance: AtomicF32,
     time: AtomicF32,
     day: AtomicF32,
     month: AtomicF32,
@@ -102,8 +102,8 @@ static OMSI_DATA: OmsiData = OmsiData {
     indicator_right: AtomicF32::new(0.0),
     fuel: AtomicF32::new(0.0),
     stop_brake: AtomicF32::new(0.0),
-    door_loop: AtomicF32::new(0.0),
-    door_enable: AtomicF32::new(0.0),
+    door_open: AtomicF32::new(0.0),
+    door_clearance: AtomicF32::new(0.0),
     time: AtomicF32::new(0.0),
     day: AtomicF32::new(0.0),
     month: AtomicF32::new(0.0),
@@ -129,8 +129,8 @@ enum OmsiDataField {
     IndicatorRight,
     Fuel,
     StopBrake,
-    DoorLoop,
-    DoorEnable,
+    DoorOpen,
+    DoorClearance,
     Time,
     Day,
     Month,
@@ -155,8 +155,8 @@ impl From<usize> for OmsiDataField {
             x if x == OmsiDataField::IndicatorRight as usize => OmsiDataField::IndicatorRight,
             x if x == OmsiDataField::Fuel as usize => OmsiDataField::Fuel,
             x if x == OmsiDataField::StopBrake as usize => OmsiDataField::StopBrake,
-            x if x == OmsiDataField::DoorLoop as usize => OmsiDataField::DoorLoop,
-            x if x == OmsiDataField::DoorEnable as usize => OmsiDataField::DoorEnable,
+            x if x == OmsiDataField::DoorOpen as usize => OmsiDataField::DoorOpen,
+            x if x == OmsiDataField::DoorClearance as usize => OmsiDataField::DoorClearance,
             x if x == OmsiDataField::Time as usize => OmsiDataField::Time,
             x if x == OmsiDataField::Day as usize => OmsiDataField::Day,
             x if x == OmsiDataField::Month as usize => OmsiDataField::Month,
@@ -335,13 +335,13 @@ pub fn get_vehicle_state_from_omsi(engineonvalue: u8) -> VehicleState {
     s.lights_second_door = OMSI_DATA.second_door.load(Relaxed) > 0.0;
     s.lights_third_door = OMSI_DATA.third_door.load(Relaxed) > 0.0;
 
-    s.door_enable = OMSI_DATA.door_enable.load(Relaxed) > 0.0;
+    s.door_clearance = OMSI_DATA.door_clearance.load(Relaxed) > 0.0;
 
-    // Türschleife erst setzen und dann errechnen
-    s.doors = OMSI_DATA.door_loop.load(Relaxed) > 0.0;
-    if s.lights_front_door || s.lights_second_door || s.lights_third_door || s.door_enable {
-        s.doors = true;
-    }
+    // Türschleife nur noch aus OMSI Variable ermitteln
+    s.doors = OMSI_DATA.door_open.load(Relaxed) > 0.0;
+    // if s.lights_front_door || s.lights_second_door || s.lights_third_door || s.door_clearance {
+    //    s.doors = true;
+    // }
 
     s.lights_stop_request = OMSI_DATA.stop_request.load(Relaxed) > 0.0;
 
@@ -563,8 +563,8 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
                         "indicatorright" => OmsiDataField::IndicatorRight,
                         "fuel" => OmsiDataField::Fuel,
                         "stopbrake" => OmsiDataField::StopBrake,
-                        "doorenable" => OmsiDataField::DoorEnable,
-                        "doorloop" => OmsiDataField::DoorLoop,
+                        "doorclearance" => OmsiDataField::DoorClearance,
+                        "dooropen" => OmsiDataField::DoorOpen,
                         "time" => OmsiDataField::Time,
                         "day" => OmsiDataField::Day,
                         "month" => OmsiDataField::Month,
@@ -784,8 +784,8 @@ fn handle_variable_access(index: usize, value: *const c_float) {
         OmsiDataField::IndicatorRight => OMSI_DATA.indicator_right.store(val_to_store, Relaxed),
         OmsiDataField::Fuel => OMSI_DATA.fuel.store(val_to_store, Relaxed),
         OmsiDataField::StopBrake => OMSI_DATA.stop_brake.store(val_to_store, Relaxed),
-        OmsiDataField::DoorLoop => OMSI_DATA.door_loop.store(val_to_store, Relaxed),
-        OmsiDataField::DoorEnable => OMSI_DATA.door_enable.store(val_to_store, Relaxed),
+        OmsiDataField::DoorOpen => OMSI_DATA.door_open.store(val_to_store, Relaxed),
+        OmsiDataField::DoorClearance => OMSI_DATA.door_clearance.store(val_to_store, Relaxed),
         OmsiDataField::Time => OMSI_DATA.time.store(val_to_store, Relaxed),
         OmsiDataField::Day => OMSI_DATA.day.store(val_to_store, Relaxed),
         OmsiDataField::Month => OMSI_DATA.month.store(val_to_store, Relaxed),

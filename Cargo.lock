@@ -144,9 +144,9 @@ dependencies = [
 
 [[package]]
 name = "komsi"
-version = "1.5.1"
+version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "81a1ea4d36085b89e9c1852cb8cc14fcb3ceaea4eb13646e9bc52e4691e07632"
+checksum = "5ae8b13dfe6067e22fc40a7927d25e39eccb1d459da54e1dc869ced687ad394c"
 
 [[package]]
 name = "libc"

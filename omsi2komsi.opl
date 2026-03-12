@@ -3,7 +3,7 @@
 omsi2komsi.dll
 
 [varlist]
-19
+20
 elec_busbar_main
 cockpit_light_batterie
 Velocity
@@ -23,6 +23,7 @@ blafasel_one
 blafasel_two
 blafasel_three
 blafasel_four
+blafasel_tuerschleife
 
 [systemvarlist]
 4
@@ -64,7 +65,8 @@ IndicatorLeft=ai_blinker_l
 IndicatorRight=ai_blinker_r
 Fuel=tank_percent
 StopBrake=bremse_halte
-DoorEnable=blafasel_one,blafasel_two,blafasel_three
+DoorClearance=blafasel_one,blafasel_two,blafasel_three
+DoorOpen=blafasel_tuerschleife
 
 [hotkey]
 0x79
