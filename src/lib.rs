@@ -185,7 +185,9 @@ impl From<usize> for OmsiDataField {
             x if x == OmsiDataField::WarningLights as usize => OmsiDataField::WarningLights,
             x if x == OmsiDataField::Fuel as usize => OmsiDataField::Fuel,
             x if x == OmsiDataField::StopBrake as usize => OmsiDataField::StopBrake,
-            x if x == OmsiDataField::PassengerDoorsOpen as usize => OmsiDataField::PassengerDoorsOpen,
+            x if x == OmsiDataField::PassengerDoorsOpen as usize => {
+                OmsiDataField::PassengerDoorsOpen
+            }
             x if x == OmsiDataField::DoorClearance as usize => OmsiDataField::DoorClearance,
             x if x == OmsiDataField::Time as usize => OmsiDataField::Time,
             x if x == OmsiDataField::Day as usize => OmsiDataField::Day,
@@ -345,75 +347,65 @@ extern "system" fn wndproc(
 pub fn get_vehicle_state_from_omsi(engineonvalue: u8) -> VehicleState {
     let mut s = VehicleState::new();
 
-    s.ignition = OMSI_DATA.ignition.load(Relaxed) > 0.0;
+    s.ignition = OMSI_DATA.ignition.load(Relaxed) > 0.5;
 
     if !s.ignition {
         return s;
     }
 
-    let engineval = OMSI_DATA.battery.load(Relaxed) as u8;
-    s.battery_light = engineval > 0;
+    let engineval = OMSI_DATA.battery.load(Relaxed) > 0.5;
+    s.battery_light = engineval;
 
     // we use the value of the battery light for engine on/off state
     // we do not check OMSI_DATA.engine
-    if engineval == engineonvalue {
-        s.engine = true;
-    }
+    // if engineval == engineonvalue {
+    s.engine = engineval;
+    //    }
 
     s.speed = OMSI_DATA.speed.load(Relaxed) as u32;
 
-    s.lights_front_door = OMSI_DATA.front_door.load(Relaxed) > 0.0;
-    s.lights_second_door = OMSI_DATA.second_door.load(Relaxed) > 0.0;
-    s.lights_third_door = OMSI_DATA.third_door.load(Relaxed) > 0.0;
+    s.lights_front_door = OMSI_DATA.front_door.load(Relaxed) > 0.5;
+    s.lights_second_door = OMSI_DATA.second_door.load(Relaxed) > 0.5;
+    s.lights_third_door = OMSI_DATA.third_door.load(Relaxed) > 0.5;
 
-    s.door_clearance = OMSI_DATA.door_clearance.load(Relaxed) > 0.0;
+    s.door_clearance = OMSI_DATA.door_clearance.load(Relaxed) > 0.5;
 
     // Türschleife nur noch aus OMSI Variable ermitteln
-    s.doors = OMSI_DATA.passenger_doors_open.load(Relaxed) > 0.0;
+    s.doors = OMSI_DATA.passenger_doors_open.load(Relaxed) > 0.5;
     // if s.lights_front_door || s.lights_second_door || s.lights_third_door || s.door_clearance {
     //    s.doors = true;
     // }
 
-    s.lights_stop_request = OMSI_DATA.stop_request.load(Relaxed) > 0.0;
+    s.lights_stop_request = OMSI_DATA.stop_request.load(Relaxed) > 0.5;
 
-    let ail = OMSI_DATA.light_main.load(Relaxed) as u8;
+    s.lights_high_beam = OMSI_DATA.lights_high_beam.load(Relaxed) > 0.5;
+    s.fixing_brake = OMSI_DATA.fixing_brake.load(Relaxed) > 0.5;
 
-    s.lights_high_beam = OMSI_DATA.lights_high_beam.load(Relaxed) > 0.0;
+    s.lights_main = OMSI_DATA.light_main.load(Relaxed) > 0.5;
 
-    if ail > 0 {
-        // TODO search different OMSI variable, because this one is always "2" when high beam is active
-        s.lights_main = true;
+    // if ail > 0 {
+    //     // TODO search different OMSI variable, because this one is always "2" when high beam is active
+    //    s.lights_main = true;
+    // }
+
+    let ind_l = OMSI_DATA.indicator_left.load(Relaxed) > 0.5;
+    let ind_r = OMSI_DATA.indicator_right.load(Relaxed) > 0.5;
+
+    if ind_l == !ind_r {    // links oder rechts, nicht beide
+        s.indicator = 1
+    } else {
+        s.indicator = 0 // TODO ja, hier sollten wir links/rechts unterscheiden, ist aber erstmal egal
     }
 
-    s.fixing_brake = OMSI_DATA.fixing_brake.load(Relaxed) > 0.0;
+    s.lights_warning = ind_l && ind_r;
 
-    let ail_val = OMSI_DATA.indicator_left.load(Relaxed) as u8;
-    let air_val = OMSI_DATA.indicator_right.load(Relaxed) as u8;
-
-    let aisum = ail_val + air_val;
-
-    if aisum == 1 {
-        // left OR right
-        // Blinker
-        if ail_val == 1 {
-            s.indicator = 1
-        } else {
-            s.indicator = 2;
-        }
-    }
-
-    if aisum > 1 {
-        // left AND right means warning lights
-        s.lights_warning = true;
-    }
     // we do not check OMSI_DATA.warning_lights
-
 
     // fuel is in percent, so we multiply by 100
     let f = OMSI_DATA.fuel.load(Relaxed);
     s.fuel = (f.abs() * 100.0).round() as u8;
 
-    s.lights_stop_brake = OMSI_DATA.stop_brake.load(Relaxed) > 0.0;
+    s.lights_stop_brake = OMSI_DATA.stop_brake.load(Relaxed) > 0.5;
 
     let time_sec = OMSI_DATA.time.load(Relaxed) as u32;
     s.datetime.hour = (time_sec / 3600) as u8;
@@ -620,7 +612,7 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
                     let field = match target.as_str() {
                         "ignition" => OmsiDataField::Ignition,
                         "batterylight" => OmsiDataField::BatteryLight,
-                        "engine" => OmsiDataField::Engine,      // not used at the moment, we calculate it from batterylight
+                        "engine" => OmsiDataField::Engine, // not used at the moment, we calculate it from batterylight
                         "speed" => OmsiDataField::Speed,
                         "frontdoor" => OmsiDataField::FrontDoor,
                         "seconddoor" => OmsiDataField::SecondDoor,
@@ -859,6 +851,7 @@ fn handle_variable_access(index: usize, value: *const c_float) {
     let f = unsafe { *value };
     let val_to_store = f as f32;
 
+
     match field {
         OmsiDataField::Ignition => OMSI_DATA.ignition.store(val_to_store, Relaxed),
         OmsiDataField::Engine => OMSI_DATA.engine.store(val_to_store, Relaxed),
@@ -885,6 +878,247 @@ fn handle_variable_access(index: usize, value: *const c_float) {
         OmsiDataField::Odometer => OMSI_DATA.odometer.store(val_to_store, Relaxed),
         OmsiDataField::None => {}
     }
+
+    /*
+       match field {
+           OmsiDataField::Ignition => {
+               let old = OMSI_DATA.ignition.swap(val_to_store, Relaxed);
+               if DEBUG_MODE.load(Relaxed) && (old - val_to_store).abs() > f32::EPSILON {
+                   if let Ok(names) = VAR_NAMES.read() {
+                       if let Some(name) = names.get(index) {
+                           log_message(format!("{} = {}", name, val_to_store));
+                       }
+                   }
+               }
+           }
+           OmsiDataField::Engine => {
+               let old = OMSI_DATA.engine.swap(val_to_store, Relaxed);
+               if DEBUG_MODE.load(Relaxed) && (old - val_to_store).abs() > f32::EPSILON {
+                   if let Ok(names) = VAR_NAMES.read() {
+                       if let Some(name) = names.get(index) {
+                           log_message(format!("{} = {}", name, val_to_store));
+                       }
+                   }
+               }
+           }
+           OmsiDataField::BatteryLight => {
+               let old = OMSI_DATA.battery.swap(val_to_store, Relaxed);
+               if DEBUG_MODE.load(Relaxed) && (old - val_to_store).abs() > f32::EPSILON {
+                   if let Ok(names) = VAR_NAMES.read() {
+                       if let Some(name) = names.get(index) {
+                           log_message(format!("{} = {}", name, val_to_store));
+                       }
+                   }
+               }
+           }
+           /* too many changes
+           OmsiDataField::Speed => {
+               let old = OMSI_DATA.speed.swap(val_to_store, Relaxed);
+               if DEBUG_MODE.load(Relaxed) && (old - val_to_store).abs() > f32::EPSILON {
+                   if let Ok(names) = VAR_NAMES.read() {
+                       if let Some(name) = names.get(index) {
+                           log_message(format!("{} = {}", name, val_to_store));
+                       }
+                   }
+               }
+           }
+           */
+           OmsiDataField::FrontDoor => {
+               let old = OMSI_DATA.front_door.swap(val_to_store, Relaxed);
+               if DEBUG_MODE.load(Relaxed) && (old - val_to_store).abs() > f32::EPSILON {
+                   if let Ok(names) = VAR_NAMES.read() {
+                       if let Some(name) = names.get(index) {
+                           log_message(format!("{} = {}", name, val_to_store));
+                       }
+                   }
+               }
+           }
+           OmsiDataField::SecondDoor => {
+               let old = OMSI_DATA.second_door.swap(val_to_store, Relaxed);
+               if DEBUG_MODE.load(Relaxed) && (old - val_to_store).abs() > f32::EPSILON {
+                   if let Ok(names) = VAR_NAMES.read() {
+                       if let Some(name) = names.get(index) {
+                           log_message(format!("{} = {}", name, val_to_store));
+                       }
+                   }
+               }
+           }
+           OmsiDataField::ThirdDoor => {
+               let old = OMSI_DATA.third_door.swap(val_to_store, Relaxed);
+               if DEBUG_MODE.load(Relaxed) && (old - val_to_store).abs() > f32::EPSILON {
+                   if let Ok(names) = VAR_NAMES.read() {
+                       if let Some(name) = names.get(index) {
+                           log_message(format!("{} = {}", name, val_to_store));
+                       }
+                   }
+               }
+           }
+           OmsiDataField::StopRequest => {
+               let old = OMSI_DATA.stop_request.swap(val_to_store, Relaxed);
+               if DEBUG_MODE.load(Relaxed) && (old - val_to_store).abs() > f32::EPSILON {
+                   if let Ok(names) = VAR_NAMES.read() {
+                       if let Some(name) = names.get(index) {
+                           log_message(format!("{} = {}", name, val_to_store));
+                       }
+                   }
+               }
+           }
+           OmsiDataField::MainLights => {
+               let old = OMSI_DATA.light_main.swap(val_to_store, Relaxed);
+               if DEBUG_MODE.load(Relaxed) && (old - val_to_store).abs() > f32::EPSILON {
+                   if let Ok(names) = VAR_NAMES.read() {
+                       if let Some(name) = names.get(index) {
+                           log_message(format!("{} = {}", name, val_to_store));
+                       }
+                   }
+               }
+           }
+           OmsiDataField::HighBeam => {
+               let old = OMSI_DATA.lights_high_beam.swap(val_to_store, Relaxed);
+               if DEBUG_MODE.load(Relaxed) && (old - val_to_store).abs() > f32::EPSILON {
+                   if let Ok(names) = VAR_NAMES.read() {
+                       if let Some(name) = names.get(index) {
+                           log_message(format!("{} = {}", name, val_to_store));
+                       }
+                   }
+               }
+           }
+           OmsiDataField::FixingBrake => {
+               let old = OMSI_DATA.fixing_brake.swap(val_to_store, Relaxed);
+               if DEBUG_MODE.load(Relaxed) && (old - val_to_store).abs() > f32::EPSILON {
+                   if let Ok(names) = VAR_NAMES.read() {
+                       if let Some(name) = names.get(index) {
+                           log_message(format!("{} = {}", name, val_to_store));
+                       }
+                   }
+               }
+           }
+           OmsiDataField::IndicatorLeft => {
+               let old = OMSI_DATA.indicator_left.swap(val_to_store, Relaxed);
+               if DEBUG_MODE.load(Relaxed) && (old - val_to_store).abs() > f32::EPSILON {
+                   if let Ok(names) = VAR_NAMES.read() {
+                       if let Some(name) = names.get(index) {
+                           log_message(format!("{} = {}", name, val_to_store));
+                       }
+                   }
+               }
+           }
+           OmsiDataField::IndicatorRight => {
+               let old = OMSI_DATA.indicator_right.swap(val_to_store, Relaxed);
+               if DEBUG_MODE.load(Relaxed) && (old - val_to_store).abs() > f32::EPSILON {
+                   if let Ok(names) = VAR_NAMES.read() {
+                       if let Some(name) = names.get(index) {
+                           log_message(format!("{} = {}", name, val_to_store));
+                       }
+                   }
+               }
+           }
+           OmsiDataField::WarningLights => {
+               let old = OMSI_DATA.warning_lights.swap(val_to_store, Relaxed);
+               if DEBUG_MODE.load(Relaxed) && (old - val_to_store).abs() > f32::EPSILON {
+                   if let Ok(names) = VAR_NAMES.read() {
+                       if let Some(name) = names.get(index) {
+                           log_message(format!("{} = {}", name, val_to_store));
+                       }
+                   }
+               }
+           }
+           OmsiDataField::Fuel => {
+               let old = OMSI_DATA.fuel.swap(val_to_store, Relaxed);
+               if DEBUG_MODE.load(Relaxed) && (old - val_to_store).abs() > f32::EPSILON {
+                   if let Ok(names) = VAR_NAMES.read() {
+                       if let Some(name) = names.get(index) {
+                           log_message(format!("{} = {}", name, val_to_store));
+                       }
+                   }
+               }
+           }
+           OmsiDataField::StopBrake => {
+               let old = OMSI_DATA.stop_brake.swap(val_to_store, Relaxed);
+               if DEBUG_MODE.load(Relaxed) && (old - val_to_store).abs() > f32::EPSILON {
+                   if let Ok(names) = VAR_NAMES.read() {
+                       if let Some(name) = names.get(index) {
+                           log_message(format!("{} = {}", name, val_to_store));
+                       }
+                   }
+               }
+           }
+           OmsiDataField::PassengerDoorsOpen => {
+               let old = OMSI_DATA.passenger_doors_open.swap(val_to_store, Relaxed);
+               if DEBUG_MODE.load(Relaxed) && (old - val_to_store).abs() > f32::EPSILON {
+                   if let Ok(names) = VAR_NAMES.read() {
+                       if let Some(name) = names.get(index) {
+                           log_message(format!("{} = {}", name, val_to_store));
+                       }
+                   }
+               }
+           }
+           OmsiDataField::DoorClearance => {
+               let old = OMSI_DATA.door_clearance.swap(val_to_store, Relaxed);
+               if DEBUG_MODE.load(Relaxed) && (old - val_to_store).abs() > f32::EPSILON {
+                   if let Ok(names) = VAR_NAMES.read() {
+                       if let Some(name) = names.get(index) {
+                           log_message(format!("{} = {}", name, val_to_store));
+                       }
+                   }
+               }
+           }
+           /* too many changes
+           OmsiDataField::Time => {
+               let old = OMSI_DATA.time.swap(val_to_store, Relaxed);
+               if DEBUG_MODE.load(Relaxed) && (old - val_to_store).abs() > f32::EPSILON {
+                   if let Ok(names) = VAR_NAMES.read() {
+                       if let Some(name) = names.get(index) {
+                           log_message(format!("{} = {}", name, val_to_store));
+                       }
+                   }
+               }
+           }
+            */
+           OmsiDataField::Day => {
+               let old = OMSI_DATA.day.swap(val_to_store, Relaxed);
+               if DEBUG_MODE.load(Relaxed) && (old - val_to_store).abs() > f32::EPSILON {
+                   if let Ok(names) = VAR_NAMES.read() {
+                       if let Some(name) = names.get(index) {
+                           log_message(format!("{} = {}", name, val_to_store));
+                       }
+                   }
+               }
+           }
+           OmsiDataField::Month => {
+               let old = OMSI_DATA.month.swap(val_to_store, Relaxed);
+               if DEBUG_MODE.load(Relaxed) && (old - val_to_store).abs() > f32::EPSILON {
+                   if let Ok(names) = VAR_NAMES.read() {
+                       if let Some(name) = names.get(index) {
+                           log_message(format!("{} = {}", name, val_to_store));
+                       }
+                   }
+               }
+           }
+           OmsiDataField::Year => {
+               let old = OMSI_DATA.year.swap(val_to_store, Relaxed);
+               if DEBUG_MODE.load(Relaxed) && (old - val_to_store).abs() > f32::EPSILON {
+                   if let Ok(names) = VAR_NAMES.read() {
+                       if let Some(name) = names.get(index) {
+                           log_message(format!("{} = {}", name, val_to_store));
+                       }
+                   }
+               }
+           }
+           OmsiDataField::Odometer => {
+               let old = OMSI_DATA.odometer.swap(val_to_store, Relaxed);
+               if DEBUG_MODE.load(Relaxed) && (old - val_to_store).abs() > f32::EPSILON {
+                   if let Ok(names) = VAR_NAMES.read() {
+                       if let Some(name) = names.get(index) {
+                           log_message(format!("{} = {}", name, val_to_store));
+                       }
+                   }
+               }
+           }
+           OmsiDataField::None => {}
+           _ => {}
+       }
+    */
 }
 
 /// This function is called by Omsi 2 to access string variables from the plugin.
