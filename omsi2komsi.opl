@@ -3,7 +3,7 @@
 omsi2komsi.dll
 
 [varlist]
-20
+17
 elec_busbar_main
 cockpit_light_batterie
 Velocity
@@ -19,11 +19,8 @@ AI_Blinker_L
 AI_Blinker_R
 tank_percent
 bremse_halte
-blafasel_one
-blafasel_two
-blafasel_three
-blafasel_four
 blafasel_tuerschleife
+blafasel_tuerfreigabe
 
 [systemvarlist]
 4
@@ -70,21 +67,21 @@ Month=Month
 Year=Year
 Odometer=kmcounter_km
 Ignition=elec_busbar_main
-Battery=cockpit_light_batterie
+BatteryLight=cockpit_light_batterie
 Speed=velocity
 FrontDoor=door_light_1
 SecondDoor=door_light_2
 ThirdDoor=door_light_3
 StopRequest=haltewunsch
-LightMain=ai_light
-LightsHighBeam=lights_fern
+MainLights=ai_light
+HighBeam=lights_fern
 FixingBrake=cockpit_light_feststellbremse
 IndicatorLeft=ai_blinker_l
 IndicatorRight=ai_blinker_r
 Fuel=tank_percent
 StopBrake=bremse_halte
-DoorClearance=blafasel_one,blafasel_two,blafasel_three
-DoorOpen=blafasel_tuerschleife
+DoorClearance=blafasel_tuerfreigabe
+PassengerDoorOpen=blafasel_tuerschleife
 
 [hotkey]
 0x79

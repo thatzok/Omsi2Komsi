@@ -6,11 +6,11 @@ use configparser::ini::Ini;
 use core::sync::atomic::Ordering::Relaxed;
 use libc::c_char;
 use libc::c_float;
+use std::ffi::OsString;
 use std::fs::OpenOptions;
 use std::io::Write;
-use std::slice;
-use std::ffi::OsString;
 use std::os::windows::ffi::OsStringExt;
+use std::slice;
 use std::sync::atomic::{AtomicBool, AtomicUsize};
 use std::sync::{Mutex, OnceLock};
 use std::thread;
@@ -18,7 +18,7 @@ use std::time::Duration;
 
 use atomic_float::AtomicF32;
 
-use komsi::komsi::{KomsiCommand};
+use komsi::komsi::KomsiCommand;
 use komsi::vehicle::{VehicleLogger, VehicleState};
 
 #[allow(non_camel_case_types)]
@@ -79,11 +79,7 @@ fn log_message(msg: String) {
             .open(&log_file_path)
         {
             let now = chrono::Local::now();
-            let log_line = format!(
-                "{} {}\n",
-                now.format("%Y-%m-%d %H:%M:%S"),
-                msg
-            );
+            let log_line = format!("{} {}\n", now.format("%Y-%m-%d %H:%M:%S"), msg);
             let _ = file.write_all(log_line.as_bytes());
         }
     }
@@ -91,6 +87,7 @@ fn log_message(msg: String) {
 
 struct OmsiData {
     ignition: AtomicF32,
+    engine: AtomicF32,
     battery: AtomicF32,
     speed: AtomicF32,
     front_door: AtomicF32,
@@ -102,9 +99,10 @@ struct OmsiData {
     fixing_brake: AtomicF32,
     indicator_left: AtomicF32,
     indicator_right: AtomicF32,
+    warning_lights: AtomicF32,
     fuel: AtomicF32,
     stop_brake: AtomicF32,
-    door_open: AtomicF32,
+    passenger_doors_open: AtomicF32,
     door_clearance: AtomicF32,
     time: AtomicF32,
     day: AtomicF32,
@@ -115,6 +113,7 @@ struct OmsiData {
 
 static OMSI_DATA: OmsiData = OmsiData {
     ignition: AtomicF32::new(0.0),
+    engine: AtomicF32::new(0.0),
     battery: AtomicF32::new(0.0),
     speed: AtomicF32::new(0.0),
     front_door: AtomicF32::new(0.0),
@@ -126,9 +125,10 @@ static OMSI_DATA: OmsiData = OmsiData {
     fixing_brake: AtomicF32::new(0.0),
     indicator_left: AtomicF32::new(0.0),
     indicator_right: AtomicF32::new(0.0),
+    warning_lights: AtomicF32::new(0.0),
     fuel: AtomicF32::new(0.0),
     stop_brake: AtomicF32::new(0.0),
-    door_open: AtomicF32::new(0.0),
+    passenger_doors_open: AtomicF32::new(0.0),
     door_clearance: AtomicF32::new(0.0),
     time: AtomicF32::new(0.0),
     day: AtomicF32::new(0.0),
@@ -141,47 +141,51 @@ static OMSI_DATA: OmsiData = OmsiData {
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum OmsiDataField {
     None,
-    Ignition,
-    Battery,
-    Speed,
-    FrontDoor,
-    SecondDoor,
-    ThirdDoor,
-    StopRequest,
-    LightMain,
-    LightsHighBeam,
-    FixingBrake,
-    IndicatorLeft,
-    IndicatorRight,
-    Fuel,
-    StopBrake,
-    DoorOpen,
-    DoorClearance,
     Time,
     Day,
     Month,
     Year,
     Odometer,
+    Ignition,
+    Engine,
+    PassengerDoorsOpen,
+    IndicatorLeft,
+    IndicatorRight,
+    FixingBrake,
+    WarningLights,
+    MainLights,
+    FrontDoor,
+    SecondDoor,
+    ThirdDoor,
+    StopRequest,
+    StopBrake,
+    HighBeam,
+    BatteryLight,
+    DoorClearance,
+    Speed,
+    Fuel,
 }
 
 impl From<usize> for OmsiDataField {
     fn from(v: usize) -> Self {
         match v {
             x if x == OmsiDataField::Ignition as usize => OmsiDataField::Ignition,
-            x if x == OmsiDataField::Battery as usize => OmsiDataField::Battery,
+            x if x == OmsiDataField::Engine as usize => OmsiDataField::Engine,
+            x if x == OmsiDataField::BatteryLight as usize => OmsiDataField::BatteryLight,
             x if x == OmsiDataField::Speed as usize => OmsiDataField::Speed,
             x if x == OmsiDataField::FrontDoor as usize => OmsiDataField::FrontDoor,
             x if x == OmsiDataField::SecondDoor as usize => OmsiDataField::SecondDoor,
             x if x == OmsiDataField::ThirdDoor as usize => OmsiDataField::ThirdDoor,
             x if x == OmsiDataField::StopRequest as usize => OmsiDataField::StopRequest,
-            x if x == OmsiDataField::LightMain as usize => OmsiDataField::LightMain,
-            x if x == OmsiDataField::LightsHighBeam as usize => OmsiDataField::LightsHighBeam,
+            x if x == OmsiDataField::MainLights as usize => OmsiDataField::MainLights,
+            x if x == OmsiDataField::HighBeam as usize => OmsiDataField::HighBeam,
             x if x == OmsiDataField::FixingBrake as usize => OmsiDataField::FixingBrake,
             x if x == OmsiDataField::IndicatorLeft as usize => OmsiDataField::IndicatorLeft,
             x if x == OmsiDataField::IndicatorRight as usize => OmsiDataField::IndicatorRight,
+            x if x == OmsiDataField::WarningLights as usize => OmsiDataField::WarningLights,
             x if x == OmsiDataField::Fuel as usize => OmsiDataField::Fuel,
             x if x == OmsiDataField::StopBrake as usize => OmsiDataField::StopBrake,
-            x if x == OmsiDataField::DoorOpen as usize => OmsiDataField::DoorOpen,
+            x if x == OmsiDataField::PassengerDoorsOpen as usize => OmsiDataField::PassengerDoorsOpen,
             x if x == OmsiDataField::DoorClearance as usize => OmsiDataField::DoorClearance,
             x if x == OmsiDataField::Time as usize => OmsiDataField::Time,
             x if x == OmsiDataField::Day as usize => OmsiDataField::Day,
@@ -351,6 +355,7 @@ pub fn get_vehicle_state_from_omsi(engineonvalue: u8) -> VehicleState {
     s.battery_light = engineval > 0;
 
     // we use the value of the battery light for engine on/off state
+    // we do not check OMSI_DATA.engine
     if engineval == engineonvalue {
         s.engine = true;
     }
@@ -364,7 +369,7 @@ pub fn get_vehicle_state_from_omsi(engineonvalue: u8) -> VehicleState {
     s.door_clearance = OMSI_DATA.door_clearance.load(Relaxed) > 0.0;
 
     // Türschleife nur noch aus OMSI Variable ermitteln
-    s.doors = OMSI_DATA.door_open.load(Relaxed) > 0.0;
+    s.doors = OMSI_DATA.passenger_doors_open.load(Relaxed) > 0.0;
     // if s.lights_front_door || s.lights_second_door || s.lights_third_door || s.door_clearance {
     //    s.doors = true;
     // }
@@ -401,6 +406,8 @@ pub fn get_vehicle_state_from_omsi(engineonvalue: u8) -> VehicleState {
         // left AND right means warning lights
         s.lights_warning = true;
     }
+    // we do not check OMSI_DATA.warning_lights
+
 
     // fuel is in percent, so we multiply by 100
     let f = OMSI_DATA.fuel.load(Relaxed);
@@ -419,7 +426,6 @@ pub fn get_vehicle_state_from_omsi(engineonvalue: u8) -> VehicleState {
 
     s.total_distance_km = OMSI_DATA.odometer.load(Relaxed) as u64;
     s.total_distance = s.total_distance_km * 1000;
-
 
     s
 }
@@ -447,7 +453,11 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
     let mut config = Ini::new();
     let _ = config.load(config_path);
 
-    let baudrate = config.getint("omsi2komsi", "baudrate").ok().flatten().unwrap_or(115200) as u32;
+    let baudrate = config
+        .getint("omsi2komsi", "baudrate")
+        .ok()
+        .flatten()
+        .unwrap_or(115200) as u32;
     let mut portnames = Vec::new();
     if let Some(p) = config.get("omsi2komsi", "portname") {
         if !p.is_empty() {
@@ -489,10 +499,13 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
 
     if let Ok(content) = std::fs::read_to_string(config_path) {
         log_message(format!("Loading config from {}", config_path));
-        
+
         if debug_mode {
             let version = env!("CARGO_PKG_VERSION");
-            log_message(format!("--- omsi2komsi v{} started with debug mode enabled ---", version));
+            log_message(format!(
+                "--- omsi2komsi v{} started with debug mode enabled ---",
+                version
+            ));
         }
 
         let mut in_varlist = false;
@@ -606,21 +619,23 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
 
                     let field = match target.as_str() {
                         "ignition" => OmsiDataField::Ignition,
-                        "battery" => OmsiDataField::Battery,
+                        "batterylight" => OmsiDataField::BatteryLight,
+                        "engine" => OmsiDataField::Engine,      // not used at the moment, we calculate it from batterylight
                         "speed" => OmsiDataField::Speed,
                         "frontdoor" => OmsiDataField::FrontDoor,
                         "seconddoor" => OmsiDataField::SecondDoor,
                         "thirddoor" => OmsiDataField::ThirdDoor,
                         "stoprequest" => OmsiDataField::StopRequest,
-                        "lightmain" => OmsiDataField::LightMain,
-                        "lightshighbeam" => OmsiDataField::LightsHighBeam,
+                        "mainlights" => OmsiDataField::MainLights,
+                        "highbeam" => OmsiDataField::HighBeam,
                         "fixingbrake" => OmsiDataField::FixingBrake,
                         "indicatorleft" => OmsiDataField::IndicatorLeft,
                         "indicatorright" => OmsiDataField::IndicatorRight,
+                        "warninglights" => OmsiDataField::WarningLights, // not used at the moment, wie calculate it from indi_left + indi_right
                         "fuel" => OmsiDataField::Fuel,
                         "stopbrake" => OmsiDataField::StopBrake,
                         "doorclearance" => OmsiDataField::DoorClearance,
-                        "dooropen" => OmsiDataField::DoorOpen,
+                        "passengerdoorsopen" => OmsiDataField::PassengerDoorsOpen,
                         "time" => OmsiDataField::Time,
                         "day" => OmsiDataField::Day,
                         "month" => OmsiDataField::Month,
@@ -632,7 +647,7 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
                     if field != OmsiDataField::None {
                         for source_part in source.split(',') {
                             let source_part = source_part.trim();
-                            
+
                             // Map source_part to index
                             let mut found_idx = None;
                             for (i, name) in temp_system_var_names.iter().enumerate() {
@@ -734,7 +749,7 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
             let cmdbuf = vehicle_state.compare(&newstate, false, logger);
 
             // log when debug=true in config section omsi2komsi
-            if verbose && debug && cmdbuf.len() > 0  {
+            if verbose && debug && cmdbuf.len() > 0 {
                 // simple log of the command buffer or some representation
                 let ascii_repr = String::from_utf8_lossy(&cmdbuf).escape_debug().to_string();
                 log_message(format!("Sent {} bytes: \"{}\"", cmdbuf.len(), ascii_repr));
@@ -752,26 +767,38 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
                             .open()
                         {
                             Ok(mut p) => {
-                                log_message(format!("Serial port {} opened successfully", portname_item));
+                                log_message(format!(
+                                    "Serial port {} opened successfully",
+                                    portname_item
+                                ));
                                 // send SimulatorType:OMSI
                                 let mut init_buf = Vec::new();
                                 let simulator_type = KomsiCommand::SimulatorType(0);
                                 init_buf.extend_from_slice(&KomsiCommand::build(&simulator_type));
                                 init_buf.extend_from_slice(&KomsiCommand::build_eol());
                                 if let Err(e) = p.write_all(&init_buf) {
-                                    log_message(format!("Failed to send init string to {}: {}", portname_item, e));
+                                    log_message(format!(
+                                        "Failed to send init string to {}: {}",
+                                        portname_item, e
+                                    ));
                                 }
                                 ports_guard[i] = Some(p);
                             }
                             Err(e) => {
-                                log_message(format!("Failed to open serial port {}: {}", portname_item, e));
+                                log_message(format!(
+                                    "Failed to open serial port {}: {}",
+                                    portname_item, e
+                                ));
                             }
                         }
                     }
 
                     if let Some(ref mut p) = ports_guard[i] {
                         if let Err(e) = p.write_all(&cmdbuf) {
-                            log_message(format!("Serial write error on {}: {}. Closing port.", portname_item, e));
+                            log_message(format!(
+                                "Serial write error on {}: {}. Closing port.",
+                                portname_item, e
+                            ));
                             ports_guard[i] = None;
                         }
                     }
@@ -834,20 +861,22 @@ fn handle_variable_access(index: usize, value: *const c_float) {
 
     match field {
         OmsiDataField::Ignition => OMSI_DATA.ignition.store(val_to_store, Relaxed),
-        OmsiDataField::Battery => OMSI_DATA.battery.store(val_to_store, Relaxed),
+        OmsiDataField::Engine => OMSI_DATA.engine.store(val_to_store, Relaxed),
+        OmsiDataField::BatteryLight => OMSI_DATA.battery.store(val_to_store, Relaxed),
         OmsiDataField::Speed => OMSI_DATA.speed.store(val_to_store, Relaxed),
         OmsiDataField::FrontDoor => OMSI_DATA.front_door.store(val_to_store, Relaxed),
         OmsiDataField::SecondDoor => OMSI_DATA.second_door.store(val_to_store, Relaxed),
         OmsiDataField::ThirdDoor => OMSI_DATA.third_door.store(val_to_store, Relaxed),
         OmsiDataField::StopRequest => OMSI_DATA.stop_request.store(val_to_store, Relaxed),
-        OmsiDataField::LightMain => OMSI_DATA.light_main.store(val_to_store, Relaxed),
-        OmsiDataField::LightsHighBeam => OMSI_DATA.lights_high_beam.store(val_to_store, Relaxed),
+        OmsiDataField::MainLights => OMSI_DATA.light_main.store(val_to_store, Relaxed),
+        OmsiDataField::HighBeam => OMSI_DATA.lights_high_beam.store(val_to_store, Relaxed),
         OmsiDataField::FixingBrake => OMSI_DATA.fixing_brake.store(val_to_store, Relaxed),
         OmsiDataField::IndicatorLeft => OMSI_DATA.indicator_left.store(val_to_store, Relaxed),
         OmsiDataField::IndicatorRight => OMSI_DATA.indicator_right.store(val_to_store, Relaxed),
+        OmsiDataField::WarningLights => OMSI_DATA.warning_lights.store(val_to_store, Relaxed),
         OmsiDataField::Fuel => OMSI_DATA.fuel.store(val_to_store, Relaxed),
         OmsiDataField::StopBrake => OMSI_DATA.stop_brake.store(val_to_store, Relaxed),
-        OmsiDataField::DoorOpen => OMSI_DATA.door_open.store(val_to_store, Relaxed),
+        OmsiDataField::PassengerDoorsOpen => OMSI_DATA.passenger_doors_open.store(val_to_store, Relaxed),
         OmsiDataField::DoorClearance => OMSI_DATA.door_clearance.store(val_to_store, Relaxed),
         OmsiDataField::Time => OMSI_DATA.time.store(val_to_store, Relaxed),
         OmsiDataField::Day => OMSI_DATA.day.store(val_to_store, Relaxed),
@@ -880,7 +909,6 @@ pub unsafe extern "stdcall" fn AccessStringVariable(
     pw_char_ptr: *const u16,
     _write_value: *mut bool,
 ) {
-
     // log_message(format!("DEBUG: AccessStringVariable aufgerufen für Index {}", variable_index));
 
     if pw_char_ptr.is_null() {
@@ -912,11 +940,16 @@ pub unsafe extern "stdcall" fn AccessStringVariable(
                 Ok(v) => v,
                 Err(_) => return,
             };
-            
-            let new_string = OsString::from_wide(new_slice).to_string_lossy().into_owned();
+
+            let new_string = OsString::from_wide(new_slice)
+                .to_string_lossy()
+                .into_owned();
 
             let var_name = if let Ok(names) = STRING_VAR_NAMES.read() {
-                names.get(index).cloned().unwrap_or_else(|| format!("Index {}", index))
+                names
+                    .get(index)
+                    .cloned()
+                    .unwrap_or_else(|| format!("Index {}", index))
             } else {
                 format!("Index {}", index)
             };
