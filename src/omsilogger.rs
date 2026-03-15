@@ -2,12 +2,15 @@
 compile_error!("This plugin must be compiled for x86 (32-bit) to be compatible with OMSI!");
 
 use libc::{c_char, c_float};
+use std::ffi::OsString;
 use std::fs::File;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::io::{BufRead, BufReader};
+use std::os::windows::ffi::OsStringExt;
+use std::slice;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering::Relaxed};
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Mutex, OnceLock, RwLock};
 use std::thread;
 use std::time::Duration;
 
@@ -22,6 +25,8 @@ static SHARED_ARRAY: [AtomicU32; SHARED_ARRAY_SIZE] = {
 };
 
 static VAR_NAMES: OnceLock<Vec<String>> = OnceLock::new();
+static STRING_VAR_NAMES: OnceLock<Vec<String>> = OnceLock::new();
+static STRING_VAR_VALUES: RwLock<Vec<String>> = RwLock::new(Vec::new());
 static HOTKEY: OnceLock<u32> = OnceLock::new();
 static LOG_MESSAGES: Mutex<Vec<String>> = Mutex::new(Vec::new());
 static WINDOW_VISIBLE: AtomicBool = AtomicBool::new(false);
@@ -34,11 +39,13 @@ pub unsafe extern "stdcall" fn PluginStart(_a_owner: uintptr_t) {
 
     // Read varlist from .opl file manually
     let mut var_names = Vec::new();
+    let mut string_var_names = Vec::new();
     let mut hotkey_val = 0x79; // Default F10
     if let Ok(file) = File::open(opl_path) {
         let reader = BufReader::new(file);
         let mut in_varlist = false;
         let mut in_systemvarlist = false;
+        let mut in_stringvarlist = false;
         let mut in_hotkey = false;
         let mut count = 0;
         let mut expected_count = 0;
@@ -58,6 +65,16 @@ pub unsafe extern "stdcall" fn PluginStart(_a_owner: uintptr_t) {
                 if l == "[systemvarlist]" {
                     in_systemvarlist = true;
                     in_varlist = false;
+                    in_stringvarlist = false;
+                    in_hotkey = false;
+                    count = 0;
+                    expected_count = 0;
+                    continue;
+                }
+                if l == "[stringvarlist]" {
+                    in_stringvarlist = true;
+                    in_varlist = false;
+                    in_systemvarlist = false;
                     in_hotkey = false;
                     count = 0;
                     expected_count = 0;
@@ -67,6 +84,7 @@ pub unsafe extern "stdcall" fn PluginStart(_a_owner: uintptr_t) {
                     in_hotkey = true;
                     in_varlist = false;
                     in_systemvarlist = false;
+                    in_stringvarlist = false;
                     continue;
                 }
                 if in_systemvarlist {
@@ -97,6 +115,20 @@ pub unsafe extern "stdcall" fn PluginStart(_a_owner: uintptr_t) {
                         }
                     }
                 }
+                if in_stringvarlist {
+                    if expected_count == 0 {
+                        if let Ok(c) = l.parse::<usize>() {
+                            expected_count = c;
+                            if expected_count == 0 { in_stringvarlist = false; }
+                        }
+                    } else {
+                        string_var_names.push(l.to_string());
+                        count += 1;
+                        if count >= expected_count {
+                            in_stringvarlist = false;
+                        }
+                    }
+                }
                 if in_hotkey {
                     if l.starts_with("0x") {
                         if let Ok(h) = u32::from_str_radix(&l[2..], 16) {
@@ -115,6 +147,10 @@ pub unsafe extern "stdcall" fn PluginStart(_a_owner: uintptr_t) {
     }
 
     let _ = VAR_NAMES.set(var_names);
+    if let Ok(mut values) = STRING_VAR_VALUES.write() {
+        *values = vec![String::new(); string_var_names.len()];
+    }
+    let _ = STRING_VAR_NAMES.set(string_var_names);
     let _ = HOTKEY.set(hotkey_val);
 
     // GUI Thread
@@ -226,10 +262,84 @@ pub unsafe extern "stdcall" fn AccessVariable(
 #[allow(non_snake_case, unused_variables)]
 #[unsafe(export_name = "AccessStringVariable")]
 pub unsafe extern "stdcall" fn AccessStringVariable(
-    variableIndex: u16,
-    firstCharacterAddress: *const c_char,
-    writeValue: *const bool,
+    variable_index: u16,
+    pw_char_ptr: *const u16,
+    _write_value: *mut bool,
 ) {
+    if pw_char_ptr.is_null() {
+        return;
+    }
+
+    let mut len = 0;
+    while *pw_char_ptr.add(len) != 0 {
+        len += 1;
+    }
+    let new_slice = slice::from_raw_parts(pw_char_ptr, len);
+
+    let index = variable_index as usize;
+
+    if let Ok(values) = STRING_VAR_VALUES.read() {
+        if index >= values.len() {
+            return;
+        }
+
+        if !is_equal_utf16_to_str(new_slice, &values[index]) {
+            drop(values);
+
+            let mut values_write = match STRING_VAR_VALUES.write() {
+                Ok(v) => v,
+                Err(_) => return,
+            };
+
+            let new_string = OsString::from_wide(new_slice).to_string_lossy().into_owned();
+
+            let var_name = STRING_VAR_NAMES
+                .get()
+                .and_then(|names| names.get(index).cloned())
+                .unwrap_or_else(|| format!("StringIndex_{}", index));
+
+            let now = chrono::Local::now();
+            let log_line = format!(
+                "{}: {} = {}\n",
+                now.format("%Y-%m-%d %H:%M:%S"),
+                var_name,
+                new_string
+            );
+
+            let now_date = now.format("%Y-%m-%d").to_string();
+            let log_file_path = format!("omsilogger_{}.txt", now_date);
+
+            if let Ok(mut file) = OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&log_file_path)
+            {
+                let _ = file.write_all(log_line.as_bytes());
+            }
+
+            if let Ok(mut messages) = LOG_MESSAGES.lock() {
+                messages.push(log_line.clone());
+                if messages.len() > 100 {
+                    messages.remove(0);
+                }
+            }
+
+            values_write[index] = new_string;
+        }
+    }
+}
+
+fn is_equal_utf16_to_str(utf16: &[u16], s: &str) -> bool {
+    let mut s_utf16 = s.encode_utf16();
+    let mut u_iter = utf16.iter().copied();
+
+    loop {
+        match (u_iter.next(), s_utf16.next()) {
+            (Some(a), Some(b)) if a == b => continue,
+            (None, None) => return true,
+            _ => return false,
+        }
+    }
 }
 
 #[allow(non_snake_case, unused_variables)]

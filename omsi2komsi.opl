@@ -33,10 +33,23 @@ Month
 Year
 
 [stringvarlist]
-2
-cockpit_bus_name
-bus_path
-
+16
+IBIS_busstop_name
+IBIS_terminus_name
+IBIS_Complex_Line
+IBIS_Complex_Line_temp
+IBIS_cabindisplay
+IBIS_cabindisplay_led
+IBIS_Delay_min
+IBIS_Delay_sec
+IBIS_Delay_state
+wagennummer
+kennzeichen
+Haltestelle
+IBIS_DisplayText
+LCD_DisplayText
+ibis_display_texture
+Displaytext
 
 
 [omsi2komsi]

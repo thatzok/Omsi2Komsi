@@ -880,6 +880,9 @@ pub unsafe extern "stdcall" fn AccessStringVariable(
     pw_char_ptr: *const u16,
     _write_value: *mut bool,
 ) {
+
+    // log_message(format!("DEBUG: AccessStringVariable aufgerufen für Index {}", variable_index));
+
     if pw_char_ptr.is_null() {
         return;
     }
