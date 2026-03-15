@@ -32,6 +32,11 @@ Day
 Month
 Year
 
+[stringvarlist]
+2
+cockpit_bus_name
+bus_path
+
 
 
 [omsi2komsi]
@@ -42,7 +47,7 @@ portname4 =
 portname5 = 
 baudrate = 115200
 serialportenabled = true
-debug=false
+debug=true
 engineonvalue = 1
 
 [datamappings]

@@ -6,6 +6,11 @@ use configparser::ini::Ini;
 use core::sync::atomic::Ordering::Relaxed;
 use libc::c_char;
 use libc::c_float;
+use std::fs::OpenOptions;
+use std::io::Write;
+use std::slice;
+use std::ffi::OsString;
+use std::os::windows::ffi::OsStringExt;
 use std::sync::atomic::{AtomicBool, AtomicUsize};
 use std::sync::{Mutex, OnceLock};
 use std::thread;
@@ -32,6 +37,8 @@ const SHARED_ARRAY_SIZE: usize = 30;
 use std::sync::RwLock;
 
 static VAR_NAMES: RwLock<Vec<String>> = RwLock::new(Vec::new());
+static STRING_VAR_NAMES: RwLock<Vec<String>> = RwLock::new(Vec::new());
+static STRING_VAR_VALUES: RwLock<Vec<String>> = RwLock::new(Vec::new());
 static HOTKEY: OnceLock<u32> = OnceLock::new();
 static LOG_MESSAGES: Mutex<Vec<String>> = Mutex::new(Vec::new());
 static WINDOW_VISIBLE: AtomicBool = AtomicBool::new(false);
@@ -56,9 +63,28 @@ pub extern "C" fn log_message_extern(msg: *const c_char) {
 
 fn log_message(msg: String) {
     if let Ok(mut messages) = LOG_MESSAGES.lock() {
-        messages.push(msg);
+        messages.push(msg.clone());
         if messages.len() > 20 {
             messages.remove(0);
+        }
+    }
+
+    if DEBUG_MODE.load(Relaxed) {
+        let now_date = chrono::Local::now().format("%Y-%m-%d").to_string();
+        let log_file_path = format!("omsi2komsi_{}.log", now_date);
+
+        if let Ok(mut file) = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&log_file_path)
+        {
+            let now = chrono::Local::now();
+            let log_line = format!(
+                "{} {}\n",
+                now.format("%Y-%m-%d %H:%M:%S"),
+                msg
+            );
+            let _ = file.write_all(log_line.as_bytes());
         }
     }
 }
@@ -463,8 +489,15 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
 
     if let Ok(content) = std::fs::read_to_string(config_path) {
         log_message(format!("Loading config from {}", config_path));
+        
+        if debug_mode {
+            let version = env!("CARGO_PKG_VERSION");
+            log_message(format!("--- omsi2komsi v{} started with debug mode enabled ---", version));
+        }
+
         let mut in_varlist = false;
         let mut in_systemvarlist = false;
+        let mut in_stringvarlist = false;
         let mut in_datamappings = false;
         let mut in_hotkey = false;
         let mut hotkey_val = 0x79; // Default F10
@@ -486,6 +519,15 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
             if line == "[systemvarlist]" {
                 in_varlist = false;
                 in_systemvarlist = true;
+                in_stringvarlist = false;
+                in_datamappings = false;
+                in_hotkey = false;
+                continue;
+            }
+            if line == "[stringvarlist]" {
+                in_varlist = false;
+                in_systemvarlist = false;
+                in_stringvarlist = true;
                 in_datamappings = false;
                 in_hotkey = false;
                 continue;
@@ -493,6 +535,7 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
             if line == "[datamappings]" {
                 in_varlist = false;
                 in_systemvarlist = false;
+                in_stringvarlist = false;
                 in_datamappings = true;
                 in_hotkey = false;
                 continue;
@@ -500,6 +543,7 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
             if line == "[hotkey]" {
                 in_varlist = false;
                 in_systemvarlist = false;
+                in_stringvarlist = false;
                 in_datamappings = false;
                 in_hotkey = true;
                 continue;
@@ -507,6 +551,7 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
             if line.starts_with('[') {
                 in_varlist = false;
                 in_systemvarlist = false;
+                in_stringvarlist = false;
                 in_datamappings = false;
                 in_hotkey = false;
                 continue;
@@ -530,6 +575,17 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
                 }
 
                 temp_var_names.push(var_name);
+            }
+
+            if in_stringvarlist {
+                let var_name = line.to_lowercase();
+                // skip if the line is just the count (integer)
+                if let Ok(mut string_var_names) = STRING_VAR_NAMES.write() {
+                    if string_var_names.is_empty() && var_name.parse::<u32>().is_ok() {
+                        continue;
+                    }
+                    string_var_names.push(var_name);
+                }
             }
 
             if in_hotkey {
@@ -617,6 +673,12 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
             *var_names = combined_names;
         }
         let _ = HOTKEY.set(hotkey_val);
+
+        if let Ok(string_var_names) = STRING_VAR_NAMES.read() {
+            if let Ok(mut string_var_values) = STRING_VAR_VALUES.write() {
+                *string_var_values = vec![String::new(); string_var_names.len()];
+            }
+        }
     }
 
     // GUI Thread
@@ -674,7 +736,8 @@ pub unsafe extern "stdcall" fn PluginStart(aOwner: uintptr_t) {
             // log when debug=true in config section omsi2komsi
             if verbose && debug && cmdbuf.len() > 0  {
                 // simple log of the command buffer or some representation
-                log_message(format!("Sent {} bytes: {:?}", cmdbuf.len(), cmdbuf));
+                let ascii_repr = String::from_utf8_lossy(&cmdbuf).escape_debug().to_string();
+                log_message(format!("Sent {} bytes: \"{}\"", cmdbuf.len(), ascii_repr));
             }
 
             // replace after compare for next round
@@ -804,7 +867,7 @@ fn handle_variable_access(index: usize, value: *const c_float) {
 ///
 /// # Parameters
 /// * `variableIndex` - The index of the string variable to access
-/// * `firstCharacterAddress` - Pointer to the first character of the string
+/// * `pw_char_ptr` - Pointer to the first character of the string (PWideChar / UTF-16)
 /// * `writeValue` - Pointer to a boolean indicating whether to write the value
 ///
 /// # Safety
@@ -813,10 +876,67 @@ fn handle_variable_access(index: usize, value: *const c_float) {
 // #[unsafe(no_mangle)]
 #[unsafe(export_name = "AccessStringVariable")]
 pub unsafe extern "stdcall" fn AccessStringVariable(
-    variableIndex: u16,
-    firstCharacterAddress: *const c_char,
-    writeValue: *const bool,
+    variable_index: u16,
+    pw_char_ptr: *const u16,
+    _write_value: *mut bool,
 ) {
+    if pw_char_ptr.is_null() {
+        return;
+    }
+
+    // 1. Länge bestimmen (ohne String-Konvertierung)
+    let mut len = 0;
+    while *pw_char_ptr.add(len) != 0 {
+        len += 1;
+    }
+    let new_slice = slice::from_raw_parts(pw_char_ptr, len);
+
+    let index = variable_index as usize;
+
+    // 2. Nur Read-Lock für den schnellen Vergleich holen
+    if let Ok(values) = STRING_VAR_VALUES.read() {
+        if index >= values.len() {
+            return;
+        }
+
+        // Schneller Vergleich: Hat sich der Inhalt geändert?
+        // Wir vergleichen hier den UTF16-Slice mit dem existierenden String
+        if !is_equal_utf16_to_str(new_slice, &values[index]) {
+            drop(values); // Read-Lock freigeben für Write-Lock
+
+            // 3. Nur bei Änderung: String konvertieren und speichern
+            let mut values_write = match STRING_VAR_VALUES.write() {
+                Ok(v) => v,
+                Err(_) => return,
+            };
+            
+            let new_string = OsString::from_wide(new_slice).to_string_lossy().into_owned();
+
+            let var_name = if let Ok(names) = STRING_VAR_NAMES.read() {
+                names.get(index).cloned().unwrap_or_else(|| format!("Index {}", index))
+            } else {
+                format!("Index {}", index)
+            };
+
+            log_message(format!("{} = {}", var_name, new_string));
+
+            values_write[index] = new_string;
+        }
+    }
+}
+
+// Hilfsfunktion für den effizienten Vergleich ohne Allokation
+fn is_equal_utf16_to_str(utf16: &[u16], s: &str) -> bool {
+    let mut s_utf16 = s.encode_utf16();
+    let mut u_iter = utf16.iter().copied();
+
+    loop {
+        match (u_iter.next(), s_utf16.next()) {
+            (Some(a), Some(b)) if a == b => continue,
+            (None, None) => return true,
+            _ => return false,
+        }
+    }
 }
 
 /// This function is called by Omsi 2 to access system variables from the plugin.
