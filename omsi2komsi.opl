@@ -3,7 +3,7 @@
 omsi2komsi.dll
 
 [varlist]
-17
+16
 elec_busbar_main
 cockpit_light_batterie
 Velocity
@@ -12,15 +12,14 @@ door_light_1
 door_light_2
 door_light_3
 haltewunsch
-AI_Light
+lights_stand
 lights_fern
 cockpit_light_feststellbremse
 AI_Blinker_L
 AI_Blinker_R
 tank_percent
 bremse_halte
-blafasel_tuerschleife
-blafasel_tuerfreigabe
+door_freigabe
 
 [systemvarlist]
 4
@@ -30,24 +29,8 @@ Month
 Year
 
 [stringvarlist]
-16
-IBIS_busstop_name
-IBIS_terminus_name
-IBIS_Complex_Line
-IBIS_Complex_Line_temp
-IBIS_cabindisplay
-IBIS_cabindisplay_led
-IBIS_Delay_min
-IBIS_Delay_sec
-IBIS_Delay_state
+1
 wagennummer
-kennzeichen
-Haltestelle
-IBIS_DisplayText
-LCD_DisplayText
-ibis_display_texture
-Displaytext
-
 
 [omsi2komsi]
 portname = com8
@@ -73,15 +56,14 @@ FrontDoor=door_light_1
 SecondDoor=door_light_2
 ThirdDoor=door_light_3
 StopRequest=haltewunsch
-MainLights=ai_light
+MainLights=lights_stand
 HighBeam=lights_fern
 FixingBrake=cockpit_light_feststellbremse
 IndicatorLeft=ai_blinker_l
 IndicatorRight=ai_blinker_r
 Fuel=tank_percent
 StopBrake=bremse_halte
-DoorClearance=blafasel_tuerfreigabe
-PassengerDoorOpen=blafasel_tuerschleife
+DoorClearance=door_freigabe
 
 [hotkey]
 0x79
