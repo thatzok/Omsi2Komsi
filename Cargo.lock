@@ -236,7 +236,7 @@ dependencies = [
 
 [[package]]
 name = "omsi_2_komsi"
-version = "2.8.1"
+version = "2.8.2"
 dependencies = [
  "atomic_float",
  "chrono",
